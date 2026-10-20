@@ -7,8 +7,10 @@ using FanqieReader.Core;
 using FanqieReader.Services;
 using Windows.Foundation;
 using Windows.System;
+using Windows.System.Profile;
 using Windows.UI;
 using Windows.UI.Core;
+using Windows.UI.ViewManagement;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
@@ -42,6 +44,7 @@ namespace FanqieReader
             NightSwitch.IsOn = settings.IsNight;
             ResumeButton.IsEnabled = CanResume;
             initialized = true;
+            ApplyAppearance();
             Loaded += MainPage_Loaded;
         }
 
@@ -314,9 +317,15 @@ namespace FanqieReader
 
         private void ApplyAppearance()
         {
-            ReadingPanel.RequestedTheme = settings.IsNight ? ElementTheme.Dark : ElementTheme.Light;
-            ReadingPanel.Background = new SolidColorBrush(settings.IsNight ? Color.FromArgb(255, 27, 29, 31) : Color.FromArgb(255, 250, 247, 239));
-            var foreground = new SolidColorBrush(settings.IsNight ? Color.FromArgb(255, 224, 224, 218) : Color.FromArgb(255, 40, 40, 36));
+            var backgroundColor = settings.IsNight ? Color.FromArgb(255, 27, 29, 31) : Colors.White;
+            var textColor = settings.IsNight ? Color.FromArgb(255, 224, 224, 218) : Color.FromArgb(255, 40, 40, 36);
+            RequestedTheme = settings.IsNight ? ElementTheme.Dark : ElementTheme.Light;
+            Background = new SolidColorBrush(backgroundColor);
+            var foreground = new SolidColorBrush(textColor);
+            Foreground = foreground;
+            var root = Window.Current.Content as FrameworkElement;
+            if (root != null) root.RequestedTheme = RequestedTheme;
+            ReadingPanel.Background = new SolidColorBrush(settings.IsNight ? backgroundColor : Color.FromArgb(255, 250, 247, 239));
             ChapterTitleText.Foreground = foreground;
             foreach (var item in ParagraphsPanel.Children)
             {
@@ -326,6 +335,26 @@ namespace FanqieReader
                 block.Foreground = foreground;
                 block.LineHeight = settings.FontSize * 1.7;
             }
+            if (AnalyticsInfo.VersionInfo.DeviceFamily == "Windows.Desktop")
+                ApplyTitleBarAppearance(backgroundColor, textColor);
+        }
+
+        private void ApplyTitleBarAppearance(Color background, Color foreground)
+        {
+            var titleBar = ApplicationView.GetForCurrentView().TitleBar;
+            var inactive = settings.IsNight ? Color.FromArgb(255, 160, 160, 160) : Color.FromArgb(255, 100, 100, 100);
+            titleBar.BackgroundColor = background;
+            titleBar.ForegroundColor = foreground;
+            titleBar.InactiveBackgroundColor = background;
+            titleBar.InactiveForegroundColor = inactive;
+            titleBar.ButtonBackgroundColor = background;
+            titleBar.ButtonForegroundColor = foreground;
+            titleBar.ButtonInactiveBackgroundColor = background;
+            titleBar.ButtonInactiveForegroundColor = inactive;
+            titleBar.ButtonHoverBackgroundColor = settings.IsNight ? Color.FromArgb(255, 50, 52, 54) : Color.FromArgb(255, 230, 230, 230);
+            titleBar.ButtonHoverForegroundColor = foreground;
+            titleBar.ButtonPressedBackgroundColor = settings.IsNight ? Color.FromArgb(255, 75, 77, 79) : Color.FromArgb(255, 210, 210, 210);
+            titleBar.ButtonPressedForegroundColor = foreground;
         }
 
         private void ShowReaderView(string view)

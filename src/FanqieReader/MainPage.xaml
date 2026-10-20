@@ -4,9 +4,11 @@
       Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
   <Grid>
     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-    <StackPanel Margin="16,16,16,4">
-      <TextBlock Text="番茄小说" FontSize="26" />
-    </StackPanel>
+    <Grid Margin="16,16,16,4">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+      <TextBlock Text="番茄小说" FontSize="26" VerticalAlignment="Center" />
+      <ToggleSwitch x:Name="NightSwitch" Grid.Column="1" Header="夜间模式" Toggled="NightSwitch_Toggled" Margin="12,0,0,0" />
+    </Grid>
         <Grid Grid.Row="1" Margin="12,8,12,8">
           <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
           <StackPanel Margin="4,0,4,8">
@@ -59,7 +61,6 @@
                 <StackPanel Orientation="Horizontal" Margin="8,8">
                   <Button Content="A−" Click="SmallerFont_Click" />
                   <Button Content="A+" Click="LargerFont_Click" Margin="8,0" />
-                  <ToggleSwitch x:Name="NightSwitch" Header="夜间" Toggled="NightSwitch_Toggled" />
                 </StackPanel>
               </StackPanel>
               <ScrollViewer x:Name="ChapterScroller" Grid.Row="1">
