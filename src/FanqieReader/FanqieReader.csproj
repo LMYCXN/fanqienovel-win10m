@@ -45,7 +45,6 @@
     <Compile Include="MainPage.xaml.cs"><DependentUpon>MainPage.xaml</DependentUpon></Compile>
     <Compile Include="Core\BookModels.cs" />
     <Compile Include="Core\IBookSource.cs" />
-    <Compile Include="Core\DemoBookSource.cs" />
     <Compile Include="Core\ReadingSession.cs" />
     <Compile Include="Core\RequestSigner.cs" />
     <Compile Include="Core\ContentCodec.cs" />

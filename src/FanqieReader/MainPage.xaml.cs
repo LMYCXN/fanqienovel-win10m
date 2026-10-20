@@ -5,27 +5,32 @@ using System.Threading;
 using System.Threading.Tasks;
 using FanqieReader.Core;
 using FanqieReader.Services;
+using Windows.Foundation;
 using Windows.System;
+using Windows.System.Profile;
 using Windows.UI;
 using Windows.UI.Core;
+using Windows.UI.ViewManagement;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
+using System.Linq;
 
 namespace FanqieReader
 {
     public sealed partial class MainPage : Page
     {
-        private IBookSource source = new DemoBookSource();
+        private readonly OnlineBookSource source = new OnlineBookSource();
         private readonly ObservableCollection<Book> visibleBooks = new ObservableCollection<Book>();
-        private bool IsOnline { get { return source is OnlineBookSource; } }
-        private bool CanResume { get { return !string.IsNullOrEmpty(settings.BookId) && (IsOnline ? "online" : "demo") == settings.Source; } }
+        private bool CanResume { get { return !string.IsNullOrEmpty(settings.BookId) && !string.IsNullOrEmpty(settings.ChapterId); } }
         private CancellationTokenSource readerCancellation;
         private readonly ReaderSettingsStore settings = new ReaderSettingsStore();
         private Book currentBook;
         private IReadOnlyList<Chapter> currentCatalog;
+        private const int CatalogPageSize = 100;
+        private int catalogPage;
         private ReadingSession session;
         private bool initialized;
         private bool readerBusy;
@@ -37,14 +42,9 @@ namespace FanqieReader
             InitializeComponent();
             BooksList.ItemsSource = visibleBooks;
             NightSwitch.IsOn = settings.IsNight;
-            if (settings.Source == "online")
-            {
-                source = new OnlineBookSource();
-                SourcePicker.SelectedIndex = 1;
-                SearchBox.PlaceholderText = "输入番茄书名或作者";
-            }
             ResumeButton.IsEnabled = CanResume;
             initialized = true;
+            ApplyAppearance();
             Loaded += MainPage_Loaded;
         }
 
@@ -75,9 +75,9 @@ namespace FanqieReader
             if (readerBusy) return;
             readerBusy = true;
             readerCancellation = new CancellationTokenSource();
-            SourcePicker.IsEnabled = false;
             SearchBox.IsEnabled = false;
             LoadMoreButton.IsEnabled = false;
+            UpdateCatalogNavigation();
             ReaderProgress.Visibility = Visibility.Visible;
             CancelReaderButton.Visibility = Visibility.Visible;
             ReaderStatusText.Text = "正在加载…";
@@ -87,7 +87,8 @@ namespace FanqieReader
             finally
             {
                 readerCancellation.Dispose(); readerCancellation = null;
-                readerBusy = false; SourcePicker.IsEnabled = true; SearchBox.IsEnabled = true; LoadMoreButton.IsEnabled = true;
+                readerBusy = false; SearchBox.IsEnabled = true; LoadMoreButton.IsEnabled = true;
+                UpdateCatalogNavigation();
                 ReaderProgress.Visibility = Visibility.Collapsed; CancelReaderButton.Visibility = Visibility.Collapsed;
             }
         }
@@ -105,35 +106,18 @@ namespace FanqieReader
 
         private void UpdateSearchStatus()
         {
-            var online = source as OnlineBookSource;
-            LoadMoreButton.Visibility = online != null && online.HasMore ? Visibility.Visible : Visibility.Collapsed;
-            ReaderStatusText.Text = IsOnline
-                ? (string.IsNullOrWhiteSpace(SearchBox.Text) ? "输入书名开始在线搜索。" : "番茄在线 · " + visibleBooks.Count + " 本书")
-                : (visibleBooks.Count == 0 ? "没有匹配的演示书籍。" : "离线演示数据 · " + visibleBooks.Count + " 本书");
-        }
-
-        private async void SourcePicker_SelectionChanged(object sender, SelectionChangedEventArgs args)
-        {
-            if (!initialized || readerBusy) return;
-            source = SourcePicker.SelectedIndex == 1 ? (IBookSource)new OnlineBookSource() : new DemoBookSource();
-            SearchBox.Text = "";
-            SearchBox.PlaceholderText = IsOnline ? "输入番茄书名或作者" : "搜索演示书名或作者";
-            ResumeButton.IsEnabled = CanResume;
-            ChaptersList.IsItemClickEnabled = true;
-            session = null; currentBook = null; currentCatalog = null;
-            visibleBooks.Clear(); LoadMoreButton.Visibility = Visibility.Collapsed;
-            await ReaderActionAsync(SearchAsync);
+            LoadMoreButton.Visibility = source.HasMore ? Visibility.Visible : Visibility.Collapsed;
+            ReaderStatusText.Text = string.IsNullOrWhiteSpace(SearchBox.Text)
+                ? "输入书名或作者开始在线搜索。" : "番茄在线 · " + visibleBooks.Count + " 本书";
         }
 
         private async void LoadMore_Click(object sender, RoutedEventArgs args)
         {
             await ReaderActionAsync(async () =>
             {
-                var online = source as OnlineBookSource;
-                if (online == null) return;
                 var seen = new HashSet<string>();
                 foreach (var book in visibleBooks) seen.Add(book.Id);
-                foreach (var book in await online.LoadMoreAsync(readerCancellation.Token))
+                foreach (var book in await source.LoadMoreAsync(readerCancellation.Token))
                     if (seen.Add(book.Id)) visibleBooks.Add(book);
                 UpdateSearchStatus();
             });
@@ -153,13 +137,47 @@ namespace FanqieReader
             var catalog = await source.GetChaptersAsync(bookId, readerCancellation.Token);
             currentBook = book;
             currentCatalog = catalog;
+            session = null;
             BookTitleText.Text = currentBook.Title;
             BookSummaryText.Text = currentBook.Summary;
             summaryExpanded = false;
             UpdateSummary();
-            ChaptersList.ItemsSource = currentCatalog;
-            ReaderStatusText.Text = (IsOnline ? "番茄在线 · " : "离线演示数据 · ") + currentCatalog.Count + " 章";
+            // Detach the old selection before replacing the page ranges for a new book.
+            CatalogPagePicker.ItemsSource = null;
+            var ranges = new List<string>();
+            for (var start = 0; start < currentCatalog.Count; start += CatalogPageSize)
+                ranges.Add("第 " + (start + 1) + "–" + Math.Min(start + CatalogPageSize, currentCatalog.Count) + " 章");
+            catalogPage = 0;
+            CatalogPagePicker.ItemsSource = ranges;
+            ShowCatalogPage(0);
             ShowReaderView("catalog");
+        }
+
+        private void ShowCatalogPage(int page)
+        {
+            if (currentCatalog == null || page < 0 || page * (long)CatalogPageSize >= currentCatalog.Count) return;
+            catalogPage = page;
+            ChaptersList.ItemsSource = currentCatalog.Skip(page * CatalogPageSize).Take(CatalogPageSize).ToList();
+            CatalogPagePicker.SelectedIndex = page;
+            CatalogPageText.Text = (page + 1) + " / " + CatalogPagePicker.Items.Count + " 页 · 共 " + currentCatalog.Count + " 章";
+            UpdateCatalogNavigation();
+        }
+
+        private void UpdateCatalogNavigation()
+        {
+            var available = !readerBusy && currentCatalog != null && currentCatalog.Count > 0;
+            CatalogPreviousButton.IsEnabled = available && catalogPage > 0;
+            CatalogNextButton.IsEnabled = available && (catalogPage + 1) * (long)CatalogPageSize < currentCatalog.Count;
+            CatalogPagePicker.IsEnabled = available && CatalogPagePicker.Items.Count > 1;
+            ChaptersList.IsItemClickEnabled = !readerBusy;
+        }
+
+        private void CatalogPrevious_Click(object sender, RoutedEventArgs args) { if (!readerBusy) ShowCatalogPage(catalogPage - 1); }
+        private void CatalogNext_Click(object sender, RoutedEventArgs args) { if (!readerBusy) ShowCatalogPage(catalogPage + 1); }
+        private void CatalogPagePicker_SelectionChanged(object sender, SelectionChangedEventArgs args)
+        {
+            if (!readerBusy && CatalogPagePicker.SelectedIndex >= 0 && CatalogPagePicker.SelectedIndex != catalogPage)
+                ShowCatalogPage(CatalogPagePicker.SelectedIndex);
         }
 
         private async void Book_Click(object sender, ItemClickEventArgs args)
@@ -207,11 +225,11 @@ namespace FanqieReader
             }
             PreviousButton.IsEnabled = session.CanPrevious;
             NextButton.IsEnabled = session.CanNext;
-            ReaderStatusText.Text = (IsOnline ? "番茄在线 · " : "演示数据 · ") + (content.IsComplete ? "完整章节" : "片段或完整性未确认") + " · " + content.Paragraphs.Count + " 段 · " + (session.Index + 1) + "/" + session.Count;
+            ReaderStatusText.Text = "番茄在线 · " + (content.IsComplete ? "完整章节" : "片段或完整性未确认") + " · " + content.Paragraphs.Count + " 段 · " + (session.Index + 1) + "/" + session.Count;
             ApplyAppearance();
             ShowReaderView("reading");
             ChapterScroller.ChangeView(null, 0, null, true);
-            settings.SaveProgress(session.BookId, chapter.Id, IsOnline ? "online" : "demo");
+            settings.SaveProgress(session.BookId, chapter.Id);
             ResumeButton.IsEnabled = true;
         }
 
@@ -237,10 +255,47 @@ namespace FanqieReader
 
         private void UpdateSummary()
         {
+            var canExpand = SummaryExceedsFourLines();
+            if (!canExpand) summaryExpanded = false;
             BookSummaryText.MaxLines = summaryExpanded ? 0 : 4;
             BookSummaryText.TextTrimming = summaryExpanded ? TextTrimming.None : TextTrimming.CharacterEllipsis;
             SummaryToggleButton.Content = summaryExpanded ? "收起简介" : "展开简介";
-            SummaryToggleButton.Visibility = string.IsNullOrWhiteSpace(BookSummaryText.Text) ? Visibility.Collapsed : Visibility.Visible;
+            SummaryToggleButton.Visibility = canExpand ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void BookSummaryText_SizeChanged(object sender, SizeChangedEventArgs args)
+        {
+            if (args.NewSize.Width != args.PreviousSize.Width) UpdateSummary();
+        }
+
+        private bool SummaryExceedsFourLines()
+        {
+            if (string.IsNullOrWhiteSpace(BookSummaryText.Text) || BookSummaryText.ActualWidth <= 0) return false;
+            // Measure separately so detection also works while the visible summary is expanded.
+            var measure = new TextBlock
+            {
+                Text = BookSummaryText.Text,
+                TextWrapping = BookSummaryText.TextWrapping,
+                FontFamily = BookSummaryText.FontFamily,
+                FontSize = BookSummaryText.FontSize,
+                FontWeight = BookSummaryText.FontWeight,
+                FontStyle = BookSummaryText.FontStyle,
+                FontStretch = BookSummaryText.FontStretch,
+                CharacterSpacing = BookSummaryText.CharacterSpacing,
+                LineHeight = BookSummaryText.LineHeight,
+                LineStackingStrategy = BookSummaryText.LineStackingStrategy,
+                IsTextScaleFactorEnabled = BookSummaryText.IsTextScaleFactorEnabled,
+                FlowDirection = BookSummaryText.FlowDirection,
+                Language = BookSummaryText.Language,
+                Padding = BookSummaryText.Padding
+            };
+            var available = new Size(BookSummaryText.ActualWidth, double.PositiveInfinity);
+            measure.Measure(available);
+            var fullHeight = measure.DesiredSize.Height;
+            measure.MaxLines = 4;
+            measure.TextTrimming = TextTrimming.CharacterEllipsis;
+            measure.Measure(available);
+            return fullHeight > measure.DesiredSize.Height + 0.5;
         }
 
         private void SmallerFont_Click(object sender, RoutedEventArgs args) { SaveAppearance(settings.FontSize - 2); }
@@ -262,9 +317,15 @@ namespace FanqieReader
 
         private void ApplyAppearance()
         {
-            ReadingPanel.RequestedTheme = settings.IsNight ? ElementTheme.Dark : ElementTheme.Light;
-            ReadingPanel.Background = new SolidColorBrush(settings.IsNight ? Color.FromArgb(255, 27, 29, 31) : Color.FromArgb(255, 250, 247, 239));
-            var foreground = new SolidColorBrush(settings.IsNight ? Color.FromArgb(255, 224, 224, 218) : Color.FromArgb(255, 40, 40, 36));
+            var backgroundColor = settings.IsNight ? Color.FromArgb(255, 27, 29, 31) : Colors.White;
+            var textColor = settings.IsNight ? Color.FromArgb(255, 224, 224, 218) : Color.FromArgb(255, 40, 40, 36);
+            RequestedTheme = settings.IsNight ? ElementTheme.Dark : ElementTheme.Light;
+            Background = new SolidColorBrush(backgroundColor);
+            var foreground = new SolidColorBrush(textColor);
+            Foreground = foreground;
+            var root = Window.Current.Content as FrameworkElement;
+            if (root != null) root.RequestedTheme = RequestedTheme;
+            ReadingPanel.Background = new SolidColorBrush(settings.IsNight ? backgroundColor : Color.FromArgb(255, 250, 247, 239));
             ChapterTitleText.Foreground = foreground;
             foreach (var item in ParagraphsPanel.Children)
             {
@@ -274,14 +335,45 @@ namespace FanqieReader
                 block.Foreground = foreground;
                 block.LineHeight = settings.FontSize * 1.7;
             }
+            if (AnalyticsInfo.VersionInfo.DeviceFamily == "Windows.Desktop")
+                ApplyTitleBarAppearance(backgroundColor, textColor);
+        }
+
+        private void ApplyTitleBarAppearance(Color background, Color foreground)
+        {
+            var titleBar = ApplicationView.GetForCurrentView().TitleBar;
+            var inactive = settings.IsNight ? Color.FromArgb(255, 160, 160, 160) : Color.FromArgb(255, 100, 100, 100);
+            titleBar.BackgroundColor = background;
+            titleBar.ForegroundColor = foreground;
+            titleBar.InactiveBackgroundColor = background;
+            titleBar.InactiveForegroundColor = inactive;
+            titleBar.ButtonBackgroundColor = background;
+            titleBar.ButtonForegroundColor = foreground;
+            titleBar.ButtonInactiveBackgroundColor = background;
+            titleBar.ButtonInactiveForegroundColor = inactive;
+            titleBar.ButtonHoverBackgroundColor = settings.IsNight ? Color.FromArgb(255, 50, 52, 54) : Color.FromArgb(255, 230, 230, 230);
+            titleBar.ButtonHoverForegroundColor = foreground;
+            titleBar.ButtonPressedBackgroundColor = settings.IsNight ? Color.FromArgb(255, 75, 77, 79) : Color.FromArgb(255, 210, 210, 210);
+            titleBar.ButtonPressedForegroundColor = foreground;
         }
 
         private void ShowReaderView(string view)
         {
+            var returningToCatalog = view == "catalog" && readerView == "reading" && session != null;
+            if (returningToCatalog) ShowCatalogPage(session.Index / CatalogPageSize);
             readerView = view;
             BooksPanel.Visibility = view == "books" ? Visibility.Visible : Visibility.Collapsed;
             CatalogPanel.Visibility = view == "catalog" ? Visibility.Visible : Visibility.Collapsed;
             ReadingPanel.Visibility = view == "reading" ? Visibility.Visible : Visibility.Collapsed;
+            if (view == "catalog" && currentCatalog != null)
+            {
+                ReaderStatusText.Text = "番茄在线 · " + currentCatalog.Count + " 章";
+                if (returningToCatalog)
+                {
+                    ChaptersList.UpdateLayout();
+                    ChaptersList.ScrollIntoView(session.Current, ScrollIntoViewAlignment.Leading);
+                }
+            }
             UpdateBackButton();
         }
 

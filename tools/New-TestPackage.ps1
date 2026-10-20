@@ -102,7 +102,7 @@ $sourceArchive = [System.IO.Compression.ZipFile]::Open($sourceZip, [System.IO.Co
 try {
     $appRoot = Join-Path $projectRoot 'src\FanqieReader'
     [xml]$project = Get-Content -LiteralPath (Join-Path $appRoot 'FanqieReader.csproj') -Raw
-    $files = @((Join-Path $projectRoot 'FanqieReader.sln'), (Join-Path $appRoot 'FanqieReader.csproj'), (Join-Path $projectRoot 'README.md'), (Join-Path $projectRoot 'THIRD_PARTY_NOTICES.md'), (Join-Path $projectRoot 'CODEX_PROJECT_CONTEXT.md'), (Join-Path $projectRoot '.gitignore'))
+    $files = @((Join-Path $projectRoot 'FanqieReader.sln'), (Join-Path $appRoot 'FanqieReader.csproj'), (Join-Path $projectRoot 'README.md'), (Join-Path $projectRoot 'THIRD_PARTY_NOTICES.md'), (Join-Path $projectRoot '.gitignore'))
     foreach ($item in $project.Project.ItemGroup.ChildNodes) {
         if ($item.Include -and $item.LocalName -ne 'PackageReference') { $files += [System.IO.Path]::GetFullPath((Join-Path $appRoot $item.Include)) }
     }

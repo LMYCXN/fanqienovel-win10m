@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading;
 using FanqieReader.Core;
 
 internal static class CoreTests
@@ -69,46 +68,24 @@ internal static class CoreTests
             var bomb = ContentCodec.Gzip(expanded);
             Throws<InvalidDataException>(() => ContentCodec.Gunzip(bomb), "Decompression size limit");
             Throws<InvalidDataException>(() => ContentCodec.ParseHtml("x", "<html>not paragraphs</html>", 0, 0), "Unsupported content must fail clearly");
-            var source = new DemoBookSource();
-            var token = CancellationToken.None;
-            var books = source.SearchAsync("", token).GetAwaiter().GetResult();
-            Check(books.Count == 2, "Empty search must show demo library");
-            Check(source.SearchAsync("  灯塔  ", token).Result.Count == 1, "Title search and trimming");
-            Check(source.SearchAsync("演示作者", token).Result.Count == 2, "Author search");
-            Check(source.SearchAsync("不存在的书名", token).Result.Count == 0, "Empty result");
-            foreach (var book in books)
+            var catalog = new List<Chapter>
             {
-                Check(source.GetBookAsync(book.Id, token).Result.Title == book.Title, "Search/detail consistency");
-                var catalog = source.GetChaptersAsync(book.Id, token).Result;
-                Check(catalog.Count > 0, "Books need a catalog");
-                var ids = new HashSet<string>();
-                foreach (var chapter in catalog)
-                {
-                    Check(ids.Add(chapter.Id), "Chapter IDs must be unique");
-                    var content = source.GetChapterAsync(chapter.Id, token).Result;
-                    Check(content.ChapterId == chapter.Id && content.IsComplete && content.Paragraphs.Count > 0, "Catalog/content consistency");
-                }
-                var session = new ReadingSession(book.Id, catalog, catalog[0].Id);
-                Check(!session.CanPrevious && !session.Move(-1) && session.Index == 0, "First chapter boundary");
-                while (session.CanNext) Check(session.Move(1), "Forward chapter movement");
-                Check(!session.Move(1) && session.Current.Id == catalog[catalog.Count - 1].Id, "Last chapter boundary");
-                Check(!session.Move(int.MaxValue), "Movement must not overflow");
-                var restored = new ReadingSession(book.Id, catalog, session.Current.Id);
-                Check(restored.Index == session.Index, "Resume exact chapter");
-                Check(new ReadingSession(book.Id, catalog, "removed-chapter").Index == 0, "Missing saved chapter falls back to first");
-            }
-            Throws<KeyNotFoundException>(() => source.GetBookAsync("missing", token), "Unknown book must fail");
-            Throws<KeyNotFoundException>(() => source.GetChaptersAsync("missing", token), "Unknown catalog must fail");
-            Throws<KeyNotFoundException>(() => source.GetChapterAsync("missing", token), "Unknown chapter must fail");
-            var cancelled = new CancellationToken(true);
-            Throws<OperationCanceledException>(() => source.SearchAsync("", cancelled), "Cancelled search must stop");
-            Throws<OperationCanceledException>(() => source.GetChapterAsync("demo-harbor-1", cancelled), "Cancelled reading must stop");
+                new Chapter("c1", "one"), new Chapter("c2", "two"), new Chapter("c3", "three")
+            };
+            var session = new ReadingSession("book", catalog, catalog[0].Id);
+            Check(!session.CanPrevious && !session.Move(-1) && session.Index == 0, "First chapter boundary");
+            while (session.CanNext) Check(session.Move(1), "Forward chapter movement");
+            Check(!session.Move(1) && session.Current.Id == catalog[catalog.Count - 1].Id, "Last chapter boundary");
+            Check(!session.Move(int.MaxValue), "Movement must not overflow");
+            var restored = new ReadingSession("book", catalog, session.Current.Id);
+            Check(restored.Index == session.Index, "Resume exact chapter");
+            Check(new ReadingSession("book", catalog, "removed-chapter").Index == 0, "Missing saved chapter falls back to first");
             Throws<ArgumentException>(() => new ReadingSession("book", new Chapter[0], null), "Empty session must fail");
             var mutableCatalog = new List<Chapter> { new Chapter("c1", "one") };
             var isolated = new ReadingSession("book", mutableCatalog, "c1");
             mutableCatalog.Clear();
             Check(isolated.Current.Id == "c1", "Session must own its catalog snapshot");
-            Console.WriteLine("PASS: " + assertions + " core assertions; upstream GET/POST/TT/AES/gzip fixtures, completeness, text conversion, size limits, demo reading and navigation.");
+            Console.WriteLine("PASS: " + assertions + " core assertions; upstream GET/POST/TT/AES/gzip fixtures, completeness, text conversion, size limits and navigation.");
             return 0;
         }
         catch (Exception error)

@@ -4,46 +4,55 @@
       Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
   <Grid>
     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-    <StackPanel Margin="16,16,16,4">
-      <TextBlock Text="番茄阅读原型" FontSize="26" />
-    </StackPanel>
+    <Grid Margin="16,16,16,4">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+      <TextBlock Text="番茄小说" FontSize="26" VerticalAlignment="Center" />
+      <ToggleSwitch x:Name="NightSwitch" Grid.Column="1" Header="夜间模式" Toggled="NightSwitch_Toggled" Margin="12,0,0,0" />
+    </Grid>
         <Grid Grid.Row="1" Margin="12,8,12,8">
           <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
           <StackPanel Margin="4,0,4,8">
-            <TextBlock x:Name="ReaderStatusText" Text="离线演示数据" TextWrapping="Wrap" />
+            <TextBlock x:Name="ReaderStatusText" Text="输入书名或作者开始在线搜索。" TextWrapping="Wrap" />
             <ProgressBar x:Name="ReaderProgress" IsIndeterminate="True" Visibility="Collapsed" Margin="0,6" />
             <Button x:Name="CancelReaderButton" Content="取消加载" Click="CancelReader_Click" Visibility="Collapsed" />
           </StackPanel>
           <Grid Grid.Row="1">
             <Grid x:Name="BooksPanel">
-              <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-              <ComboBox x:Name="SourcePicker" SelectedIndex="0" SelectionChanged="SourcePicker_SelectionChanged" HorizontalAlignment="Stretch" Margin="0,0,0,8">
-                <ComboBoxItem Content="离线演示" /><ComboBoxItem Content="番茄在线阅读" />
-              </ComboBox>
-              <TextBox x:Name="SearchBox" Grid.Row="1" PlaceholderText="搜索演示书名或作者" KeyDown="SearchBox_KeyDown" />
-              <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8">
+              <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+              <TextBox x:Name="SearchBox" PlaceholderText="输入番茄书名或作者" KeyDown="SearchBox_KeyDown" />
+              <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8">
                 <Button Content="搜索" Click="Search_Click" />
                 <Button x:Name="ResumeButton" Content="继续上次阅读" Click="Resume_Click" Margin="8,0,0,0" />
               </StackPanel>
-              <ListView x:Name="BooksList" Grid.Row="3" IsItemClickEnabled="True" ItemClick="Book_Click" SelectionMode="None">
+              <ListView x:Name="BooksList" Grid.Row="2" IsItemClickEnabled="True" ItemClick="Book_Click" SelectionMode="None">
                 <ListView.ItemTemplate>
                   <DataTemplate><StackPanel Padding="0,10"><TextBlock Text="{Binding Title}" FontSize="22" /><TextBlock Text="{Binding Author}" Opacity="0.65" /></StackPanel></DataTemplate>
                 </ListView.ItemTemplate>
               </ListView>
-              <Button x:Name="LoadMoreButton" Grid.Row="4" Content="加载更多" Click="LoadMore_Click" Visibility="Collapsed" HorizontalAlignment="Stretch" />
+              <Button x:Name="LoadMoreButton" Grid.Row="3" Content="加载更多" Click="LoadMore_Click" Visibility="Collapsed" HorizontalAlignment="Stretch" />
             </Grid>
             <Grid x:Name="CatalogPanel" Visibility="Collapsed">
+              <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
               <ListView x:Name="ChaptersList" IsItemClickEnabled="True" ItemClick="Chapter_Click" SelectionMode="None">
                 <ListView.Header>
                   <StackPanel Margin="0,0,0,12">
                     <Button Content="返回书籍" Click="BackToBooks_Click" />
                     <TextBlock x:Name="BookTitleText" FontSize="24" TextWrapping="Wrap" Margin="0,12,0,4" />
-                    <TextBlock x:Name="BookSummaryText" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis" />
-                    <Button x:Name="SummaryToggleButton" Content="展开简介" Click="ToggleSummary_Click" Margin="0,8,0,0" />
+                    <TextBlock x:Name="BookSummaryText" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis" SizeChanged="BookSummaryText_SizeChanged" />
+                    <Button x:Name="SummaryToggleButton" Content="展开简介" Click="ToggleSummary_Click" Margin="0,8,0,0" Visibility="Collapsed" />
                   </StackPanel>
                 </ListView.Header>
                 <ListView.ItemTemplate><DataTemplate><TextBlock Text="{Binding Title}" Padding="0,12" TextWrapping="Wrap" /></DataTemplate></ListView.ItemTemplate>
               </ListView>
+              <StackPanel Grid.Row="1" Margin="0,8,0,0">
+                <TextBlock x:Name="CatalogPageText" HorizontalAlignment="Center" Margin="0,0,0,6" />
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                  <Button x:Name="CatalogPreviousButton" Content="上一页" Click="CatalogPrevious_Click" />
+                  <ComboBox x:Name="CatalogPagePicker" Grid.Column="1" SelectionChanged="CatalogPagePicker_SelectionChanged" HorizontalAlignment="Stretch" Margin="8,0" />
+                  <Button x:Name="CatalogNextButton" Grid.Column="2" Content="下一页" Click="CatalogNext_Click" />
+                </Grid>
+              </StackPanel>
             </Grid>
             <Grid x:Name="ReadingPanel" Visibility="Collapsed">
               <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
@@ -52,7 +61,6 @@
                 <StackPanel Orientation="Horizontal" Margin="8,8">
                   <Button Content="A−" Click="SmallerFont_Click" />
                   <Button Content="A+" Click="LargerFont_Click" Margin="8,0" />
-                  <ToggleSwitch x:Name="NightSwitch" Header="夜间" Toggled="NightSwitch_Toggled" />
                 </StackPanel>
               </StackPanel>
               <ScrollViewer x:Name="ChapterScroller" Grid.Row="1">

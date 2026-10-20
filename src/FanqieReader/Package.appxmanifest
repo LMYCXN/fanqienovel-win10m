@@ -4,12 +4,12 @@
          xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest" IgnorableNamespaces="uap mp">
   <Identity Name="FanqieReader.Prototype" Publisher="CN=FanqieReaderDev" Version="0.4.0.0" />
   <mp:PhoneIdentity PhoneProductId="0dcd1676-36aa-4d40-b389-cab0b03f480e" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
-  <Properties><DisplayName>番茄阅读原型</DisplayName><PublisherDisplayName>FanqieReaderDev</PublisherDisplayName><Logo>Assets\StoreLogo.png</Logo></Properties>
+  <Properties><DisplayName>番茄小说</DisplayName><PublisherDisplayName>FanqieReaderDev</PublisherDisplayName><Logo>Assets\StoreLogo.png</Logo></Properties>
   <Dependencies><TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.10586.0" MaxVersionTested="10.0.0.0" /></Dependencies>
   <Resources><Resource Language="zh-CN" /></Resources>
   <Applications>
     <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="FanqieReader.App">
-      <uap:VisualElements DisplayName="番茄阅读原型" Description="Lumia 原生小说阅读器"
+      <uap:VisualElements DisplayName="番茄小说" Description="Lumia 原生小说阅读器"
                           BackgroundColor="#D75A3A" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png">
         <uap:SplashScreen Image="Assets\SplashScreen.png" />
       </uap:VisualElements>
