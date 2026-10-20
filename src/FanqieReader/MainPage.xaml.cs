@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FanqieReader.Core;
@@ -14,6 +13,7 @@ using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
+using system.Linq;
 
 namespace FanqieReader
 {
@@ -27,8 +27,6 @@ namespace FanqieReader
         private readonly ReaderSettingsStore settings = new ReaderSettingsStore();
         private Book currentBook;
         private IReadOnlyList<Chapter> currentCatalog;
-        private const int CatalogPageSize = 50;
-        private int catalogPage = 1;
         private ReadingSession session;
         private bool initialized;
         private bool readerBusy;
@@ -160,34 +158,9 @@ namespace FanqieReader
             BookSummaryText.Text = currentBook.Summary;
             summaryExpanded = false;
             UpdateSummary();
-            catalogPage = 1;
-            UpdateCatalogPage();
+            ChaptersList.ItemsSource = currentCatalog;
             ReaderStatusText.Text = (IsOnline ? "番茄在线 · " : "离线演示数据 · ") + currentCatalog.Count + " 章";
             ShowReaderView("catalog");
-        }
-
-        private void UpdateCatalogPage(bool scrollToFirst = false)
-        {
-            int totalPages = Math.Max(1, (int)Math.Ceiling(currentCatalog.Count / (double)CatalogPageSize));
-            ChaptersList.ItemsSource = currentCatalog.Skip((catalogPage - 1) * CatalogPageSize).Take(CatalogPageSize).ToList();
-            CatalogPageText.Text = "第 " + catalogPage + " / " + totalPages + " 页 · 共 " + currentCatalog.Count + " 章";
-            CatalogPreviousButton.IsEnabled = catalogPage > 1;
-            CatalogNextButton.IsEnabled = catalogPage < totalPages;
-            if (scrollToFirst && ChaptersList.Items.Count > 0) ChaptersList.ScrollIntoView(ChaptersList.Items[0], ScrollIntoViewAlignment.Leading);
-        }
-
-        private void CatalogPrevious_Click(object sender, RoutedEventArgs args)
-        {
-            if (readerBusy || catalogPage <= 1) return;
-            catalogPage--;
-            UpdateCatalogPage(true);
-        }
-
-        private void CatalogNext_Click(object sender, RoutedEventArgs args)
-        {
-            if (readerBusy || currentCatalog == null || (long)catalogPage * CatalogPageSize >= currentCatalog.Count) return;
-            catalogPage++;
-            UpdateCatalogPage(true);
         }
 
         private async void Book_Click(object sender, ItemClickEventArgs args)
@@ -306,15 +279,6 @@ namespace FanqieReader
 
         private void ShowReaderView(string view)
         {
-            if (view == "catalog" && readerView == "reading" && session != null)
-            {
-                int chapterPage = session.Index / CatalogPageSize + 1;
-                if (catalogPage != chapterPage)
-                {
-                    catalogPage = chapterPage;
-                    UpdateCatalogPage(true);
-                }
-            }
             readerView = view;
             BooksPanel.Visibility = view == "books" ? Visibility.Visible : Visibility.Collapsed;
             CatalogPanel.Visibility = view == "catalog" ? Visibility.Visible : Visibility.Collapsed;
