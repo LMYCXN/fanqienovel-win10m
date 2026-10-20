@@ -25,6 +25,6 @@ if ($FreeContent -or $Regressions) {
 else {
     $fixtureRoot = Join-Path $output 'store-fixture'
     [void][System.IO.Directory]::CreateDirectory($fixtureRoot)
-    & $executable --store-test $fixtureRoot
+    & $executable --store-test $fixtureRoot (Join-Path $projectRoot 'tests\content-vectors.tsv')
 }
 if ($LASTEXITCODE -ne 0) { throw "元数据测试失败：$LASTEXITCODE" }

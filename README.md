@@ -18,7 +18,7 @@
 前往 [GitHub Releases](https://github.com/LMYCXN/fanqienovel-win10m/releases)，在最新版本的 **Assets（附件）** 中下载文件名以 `_ARM.zip` 结尾的安装包，例如：
 
 ```text
-FanqieReader_0.4.0.0_ARM.zip
+FanqieReader_0.4.1.0_ARM.zip
 ```
 
 安装使用 ARM 安装包即可；`Source.zip`、`Source code (zip)` 和 `Source code (tar.gz)` 是源码，供开发者使用。

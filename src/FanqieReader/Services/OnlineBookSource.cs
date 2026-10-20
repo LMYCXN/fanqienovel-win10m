@@ -17,10 +17,16 @@ namespace FanqieReader.Services
         private string cursor = "0";
         private readonly Dictionary<string, string> chapterBooks = new Dictionary<string, string>();
         private readonly string sessionFolder;
+        private readonly OnlineRequest sendAsync;
         private DeviceSession deviceSession;
 
-        public OnlineBookSource() { }
-        internal OnlineBookSource(string sessionFolder) { this.sessionFolder = sessionFolder; }
+        public OnlineBookSource() : this(null, OnlineTransport.SendAsync) { }
+        internal OnlineBookSource(string sessionFolder) : this(sessionFolder, OnlineTransport.SendAsync) { }
+        internal OnlineBookSource(string sessionFolder, OnlineRequest sendAsync)
+        {
+            this.sessionFolder = sessionFolder;
+            this.sendAsync = sendAsync;
+        }
 
         public async Task<IReadOnlyList<Book>> SearchAsync(string keyword, CancellationToken cancellationToken)
         {
@@ -70,31 +76,40 @@ namespace FanqieReader.Services
             cancellationToken.ThrowIfCancellationRequested();
             string bookId;
             if (!chapterBooks.TryGetValue(chapterId, out bookId)) throw new InvalidOperationException("请先打开书籍目录。");
-            if (deviceSession == null) deviceSession = new DeviceSession(sessionFolder ?? ApplicationData.Current.LocalFolder.Path);
+            if (deviceSession == null) deviceSession = new DeviceSession(sessionFolder ?? ApplicationData.Current.LocalFolder.Path, sendAsync);
             var device = await deviceSession.EnsureAsync(cancellationToken);
-            var json = await GetAsync("https://reading.snssdk.com/reading/reader/full/v?" + BuildQuery(new[] { Pair("item_id", chapterId), Pair("req_type", "1") }, device), true, cancellationToken);
-            CheckCode(json);
-            var data = json.GetNamedObject("data");
-            var novel = data.GetNamedObject("novel_data", new JsonObject());
-            var returnedChapter = Text(novel, "item_id");
-            var returnedBook = Text(novel, "book_id");
-            if ((returnedChapter.Length > 0 && returnedChapter != chapterId) || (returnedBook.Length > 0 && returnedBook != bookId))
-                throw new InvalidDataException("服务返回的正文与所选章节不一致。");
-            var encrypted = Text(data, "content");
-            if (encrypted.Length == 0 || encrypted == "Invalid") throw new InvalidDataException("服务未返回可读正文，阅读登记可能已失效。");
-            if (Text(data, "key_version") != device.KeyVersion) throw new InvalidDataException("阅读密钥版本已变化，本次正文未解密。");
-            var compression = Text(data, "compress_status");
-            if (compression != "0" && compression != "1") throw new InvalidDataException("服务返回了尚不支持的正文压缩格式。");
-            var html = ContentCodec.DecryptChapter(encrypted, device.Key, compression == "1");
-            int total, free;
-            if (!int.TryParse(Text(data, "paragraphs_num"), out total)) total = -1;
-            if (!int.TryParse(Text(data, "free_para_nums"), out free)) free = -1;
-            return ContentCodec.ParseHtml(chapterId, html, total, free);
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                var json = await GetAsync("https://reading.snssdk.com/reading/reader/full/v?" + BuildQuery(new[] { Pair("item_id", chapterId), Pair("req_type", "1") }, device), true, cancellationToken);
+                CheckCode(json);
+                var data = json.GetNamedObject("data");
+                var novel = data.GetNamedObject("novel_data", new JsonObject());
+                var returnedChapter = Text(novel, "item_id");
+                var returnedBook = Text(novel, "book_id");
+                if ((returnedChapter.Length > 0 && returnedChapter != chapterId) || (returnedBook.Length > 0 && returnedBook != bookId))
+                    throw new InvalidDataException("服务返回的正文与所选章节不一致。");
+                var encrypted = Text(data, "content");
+                if (encrypted.Length == 0 || encrypted == "Invalid" || Text(data, "key_version") != device.KeyVersion)
+                {
+                    if (attempt == 1) break;
+                    // Registration can expire even while the reported key version is unchanged.
+                    device = await deviceSession.RefreshKeyAsync(cancellationToken);
+                    continue;
+                }
+                var compression = Text(data, "compress_status");
+                if (compression != "0" && compression != "1") throw new InvalidDataException("服务返回了尚不支持的正文压缩格式。");
+                var html = ContentCodec.DecryptChapter(encrypted, device.Key, compression == "1");
+                int total, free;
+                if (!int.TryParse(Text(data, "paragraphs_num"), out total)) total = -1;
+                if (!int.TryParse(Text(data, "free_para_nums"), out free)) free = -1;
+                return ContentCodec.ParseHtml(chapterId, html, total, free);
+            }
+            throw new InvalidDataException("已刷新阅读密钥，但服务仍未返回可读正文，请稍后重试。");
         }
 
-        private static Task<JsonObject> GetAsync(string url, bool signed, CancellationToken cancellationToken)
+        private Task<JsonObject> GetAsync(string url, bool signed, CancellationToken cancellationToken)
         {
-            return OnlineTransport.SendAsync(url, signed, cancellationToken);
+            return sendAsync(url, signed, cancellationToken);
         }
 
         internal static IReadOnlyList<Book> ParseSearch(JsonObject json, out string next, out bool more, string tabType = "3")

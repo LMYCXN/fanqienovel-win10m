@@ -3,6 +3,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using FanqieReader.Services;
 using Windows.Data.Json;
 
@@ -62,6 +63,7 @@ internal static class MetadataTests
                 var restored = new DeviceSession(args[1]).EnsureAsync(CancellationToken.None).GetAwaiter().GetResult();
                 Check(restored.DeviceId == state.DeviceId && restored.KeyVersion == "3", "New session reuses persisted identity and key");
                 Console.WriteLine("PASS: protected store round trip and session reuse; " + count + " assertions total.");
+                TestKeyRefresh(Path.Combine(args[1], "key-refresh"), args[2]);
             }
             if (args.Length > 1 && args[0] == "--export-request")
             {
@@ -132,5 +134,80 @@ internal static class MetadataTests
             return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+    }
+
+    private static void TestKeyRefresh(string folder, string fixturePath)
+    {
+        var fixtures = File.ReadAllLines(fixturePath).Select(line => line.Split('\t')).ToArray();
+        var keyFixture = fixtures.Single(row => row[0] == "KEY");
+        var chapterFixture = fixtures.Single(row => row[0] == "CHAPTER");
+        foreach (var scenario in new[] { "invalid", "empty", "version", "persistent", "mismatch", "business-error", "cancel" })
+        {
+            var scenarioFolder = Path.Combine(folder, scenario);
+            Directory.CreateDirectory(scenarioFolder);
+            var store = new ProtectedDeviceStore(scenarioFolder);
+            var original = new DeviceState { DeviceId = "1234567890123456789", InstallId = "987654321", RegistrationBody = "synthetic", Key = Enumerable.Repeat((byte)0x17, 16).ToArray(), KeyVersion = "3" };
+            store.SaveAsync(original, CancellationToken.None).GetAwaiter().GetResult();
+            var chapterRequests = 0;
+            var keyRequests = 0;
+            var version = scenario == "version" ? "4" : "3";
+            using (var cancellation = new CancellationTokenSource())
+            {
+                OnlineRequest request = (url, signed, token, body, contentType, gzip, userAgent) =>
+                {
+                    token.ThrowIfCancellationRequested();
+                    if (url.Contains("/directory/all_items/v?"))
+                        return Task.FromResult(JsonObject.Parse(@"{""code"":0,""data"":{""item_data_list"":[{""item_id"":""chapter"",""title"":""章节""}]}}"));
+                    if (url.Contains("/crypt/registerkey?"))
+                    {
+                        keyRequests++;
+                        Check(url.Contains("device_id=" + original.DeviceId) && url.Contains("iid=" + original.InstallId), "Refresh must preserve the existing device identity");
+                        return Task.FromResult(new JsonObject
+                        {
+                            ["code"] = JsonValue.CreateNumberValue(0),
+                            ["data"] = new JsonObject { ["key"] = JsonValue.CreateStringValue(keyFixture[1]), ["keyver"] = JsonValue.CreateStringValue(version) }
+                        });
+                    }
+                    if (!url.Contains("/reader/full/v?")) throw new Exception("Unexpected request during key refresh test.");
+                    chapterRequests++;
+                    if (scenario == "business-error") return Task.FromResult(JsonObject.Parse(@"{""code"":7,""message"":""unavailable""}"));
+                    var invalid = chapterRequests == 1 || scenario == "persistent";
+                    var data = new JsonObject
+                    {
+                        ["content"] = JsonValue.CreateStringValue(invalid ? (scenario == "empty" ? "" : "Invalid") : chapterFixture[1]),
+                        ["key_version"] = JsonValue.CreateStringValue(version),
+                        ["compress_status"] = JsonValue.CreateStringValue("1"),
+                        ["paragraphs_num"] = JsonValue.CreateNumberValue(2),
+                        ["free_para_nums"] = JsonValue.CreateNumberValue(2),
+                        ["novel_data"] = new JsonObject { ["item_id"] = JsonValue.CreateStringValue(scenario == "mismatch" ? "wrong-chapter" : "chapter"), ["book_id"] = JsonValue.CreateStringValue("book") }
+                    };
+                    if (scenario == "version") data["content"] = JsonValue.CreateStringValue(chapterFixture[1]);
+                    if (scenario == "cancel") cancellation.Cancel();
+                    return Task.FromResult(new JsonObject { ["code"] = JsonValue.CreateNumberValue(0), ["data"] = data });
+                };
+                var client = new OnlineBookSource(scenarioFolder, request);
+                client.GetChaptersAsync("book", cancellation.Token).GetAwaiter().GetResult();
+                if (scenario == "cancel")
+                {
+                    var cancelled = false;
+                    try { client.GetChapterAsync("chapter", cancellation.Token).GetAwaiter().GetResult(); }
+                    catch (OperationCanceledException) { cancelled = true; }
+                    Check(cancelled, "Cancellation must stop key refresh and retry");
+                }
+                else if (scenario == "persistent" || scenario == "mismatch" || scenario == "business-error")
+                    Invalid(() => client.GetChapterAsync("chapter", cancellation.Token).GetAwaiter().GetResult());
+                else
+                {
+                    var content = client.GetChapterAsync("chapter", cancellation.Token).GetAwaiter().GetResult();
+                    Check(content.IsComplete && content.Paragraphs.Count == 2 && content.Paragraphs[0] == "灯塔 & 海岸。", "Expired registration must refresh and decrypt the retried chapter: " + scenario);
+                }
+                var shouldRefresh = scenario != "mismatch" && scenario != "business-error" && scenario != "cancel";
+                Check(keyRequests == (shouldRefresh ? 1 : 0) && chapterRequests == (shouldRefresh ? 2 : 1), "Refresh is limited to one attempt and excludes unrelated errors: " + scenario);
+                var restored = new DeviceSession(scenarioFolder, request).EnsureAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Check(restored.DeviceId == original.DeviceId && restored.InstallId == original.InstallId && restored.RegistrationBody == original.RegistrationBody, "Key refresh must not replace the device registration: " + scenario);
+                Check(restored.KeyVersion == (shouldRefresh ? version : "3") && restored.Key.SequenceEqual(shouldRefresh ? Convert.FromBase64String(keyFixture[2]) : original.Key), "Refreshed key must persist and be reusable without networking: " + scenario);
+            }
+        }
+        Console.WriteLine("PASS: expired-key recovery, same-version Invalid, empty content, version changes, retry limit, identity preservation, persistence, unrelated errors and cancellation; " + count + " assertions total.");
     }
 }
