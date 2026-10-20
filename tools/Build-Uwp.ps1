@@ -1,4 +1,4 @@
-param(
+﻿param(
     [ValidateSet('ARM', 'x86', 'x64')][string]$Platform = 'ARM',
     [ValidateSet('Debug', 'Release')][string]$Configuration = 'Debug',
     [string]$SdkVersion

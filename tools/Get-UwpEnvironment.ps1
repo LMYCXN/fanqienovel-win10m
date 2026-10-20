@@ -1,4 +1,4 @@
-param([string]$OutFile, [string]$TargetSdk)
+﻿param([string]$OutFile, [string]$TargetSdk)
 $ErrorActionPreference = 'Stop'
 
 $vsRoots = @(${env:ProgramFiles(x86)}, $env:ProgramFiles) | Where-Object { $_ } | Select-Object -Unique

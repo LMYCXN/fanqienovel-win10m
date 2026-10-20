@@ -10,7 +10,6 @@ namespace FanqieReader.Services
         public bool IsNight { get; private set; }
         public string BookId { get; private set; }
         public string ChapterId { get; private set; }
-        public string Source { get; private set; }
 
         public ReaderSettingsStore()
         {
@@ -18,9 +17,12 @@ namespace FanqieReader.Services
             FontSize = size is double ? Math.Max(14, Math.Min(36, (double)size)) : 22;
             IsNight = local.Values["night"] is bool && (bool)local.Values["night"];
             var progress = local.Values["progress"] as ApplicationDataCompositeValue;
-            BookId = progress == null ? null : progress["bookId"] as string;
-            ChapterId = progress == null ? null : progress["chapterId"] as string;
-            Source = progress == null ? "demo" : (progress["source"] as string ?? "demo");
+            // Only restore online progress; older versions also stored offline examples.
+            if (progress != null && progress["source"] as string == "online")
+            {
+                BookId = progress["bookId"] as string;
+                ChapterId = progress["chapterId"] as string;
+            }
         }
 
         public void SaveAppearance(double fontSize, bool night)
@@ -31,17 +33,16 @@ namespace FanqieReader.Services
             local.Values["night"] = IsNight;
         }
 
-        public void SaveProgress(string bookId, string chapterId, string source = "demo")
+        public void SaveProgress(string bookId, string chapterId)
         {
             local.Values["progress"] = new ApplicationDataCompositeValue
             {
                 ["bookId"] = bookId,
                 ["chapterId"] = chapterId,
-                ["source"] = source
+                ["source"] = "online"
             };
             BookId = bookId;
             ChapterId = chapterId;
-            Source = source;
         }
     }
 }
