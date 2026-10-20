@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -39,9 +38,9 @@ namespace FanqieReader.Services
 
         private async Task<IReadOnlyList<Book>> SearchPageAsync(CancellationToken token)
         {
-            var url = "https://fanqienovel.com/reading/bookapi/search/tab/v?" + BuildQuery(new[]
+            var url = "https://reading.snssdk.com/reading/bookapi/search/tab/v?" + BuildQuery(new[]
             {
-                Pair("query", query), Pair("passback", cursor), Pair("selected_items", ""), Pair("tab_type", "1")
+                Pair("query", query), Pair("passback", cursor), Pair("selected_items", ""), Pair("tab_type", "3")
             });
             var json = await GetAsync(url, true, token);
             string next; bool more;
@@ -60,7 +59,7 @@ namespace FanqieReader.Services
 
         public async Task<IReadOnlyList<Chapter>> GetChaptersAsync(string bookId, CancellationToken cancellationToken)
         {
-            var json = await GetAsync("https://fanqienovel.com/api/reader/directory/detail?bookId=" + Uri.EscapeDataString(bookId), false, cancellationToken);
+            var json = await GetAsync("https://reading.snssdk.com/reading/bookapi/directory/all_items/v?" + BuildQuery(new[] { Pair("book_id", bookId) }), true, cancellationToken);
             var chapters = ParseCatalog(json);
             foreach (var chapter in chapters) chapterBooks[chapter.Id] = bookId;
             return chapters;
@@ -71,9 +70,6 @@ namespace FanqieReader.Services
             cancellationToken.ThrowIfCancellationRequested();
             string bookId;
             if (!chapterBooks.TryGetValue(chapterId, out bookId)) throw new InvalidOperationException("请先打开书籍目录。");
-            var current = await GetChaptersAsync(bookId, cancellationToken);
-            var chapter = current.FirstOrDefault(item => item.Id == chapterId);
-            if (chapter == null || !chapter.IsFreeConfirmed) throw new InvalidOperationException("本章未被目录确认为免费且已解锁，暂不能阅读。");
             if (deviceSession == null) deviceSession = new DeviceSession(sessionFolder ?? ApplicationData.Current.LocalFolder.Path);
             var device = await deviceSession.EnsureAsync(cancellationToken);
             var json = await GetAsync("https://reading.snssdk.com/reading/reader/full/v?" + BuildQuery(new[] { Pair("item_id", chapterId), Pair("req_type", "1") }, device), true, cancellationToken);
@@ -101,7 +97,7 @@ namespace FanqieReader.Services
             return OnlineTransport.SendAsync(url, signed, cancellationToken);
         }
 
-        internal static IReadOnlyList<Book> ParseSearch(JsonObject json, out string next, out bool more)
+        internal static IReadOnlyList<Book> ParseSearch(JsonObject json, out string next, out bool more, string tabType = "3")
         {
             CheckCode(json);
             next = "0"; more = false;
@@ -110,47 +106,43 @@ namespace FanqieReader.Services
             foreach (var tabValue in json.GetNamedArray("search_tabs"))
             {
                 var tab = tabValue.GetObject();
-                if (Text(tab, "tab_type") != "1") continue;
+                if (Text(tab, "tab_type") != tabType) continue;
                 next = Text(tab, "passback");
                 more = Flag(tab, "has_more");
-                foreach (var cellValue in tab.GetNamedArray("data"))
-                {
-                    var cell = cellValue.GetObject();
-                    if (Text(cell, "show_type") != "110") continue;
-                    foreach (var value in cell.GetNamedArray("book_data", new JsonArray()))
-                    {
-                        var book = ParseBook(value.GetObject());
-                        if (book.Id.Length > 0 && book.Id != "0" && ids.Add(book.Id)) books.Add(book);
-                    }
-                }
-                if (books.Count == 0) more = false;
+                CollectSearchBooks(tab.GetNamedArray("data"), books, ids);
+                more = more && next.Length > 0;
                 return books.AsReadOnly();
             }
-            throw new InvalidDataException("搜索响应缺少综合结果页。");
+            throw new InvalidDataException("搜索响应缺少书籍结果页。");
+        }
+
+        private static void CollectSearchBooks(JsonArray cells, List<Book> books, HashSet<string> ids)
+        {
+            foreach (var value in cells)
+            {
+                if (value.ValueType != JsonValueType.Object) continue;
+                var cell = value.GetObject();
+                foreach (var bookValue in cell.GetNamedArray("book_data", new JsonArray()))
+                {
+                    var book = ParseBook(bookValue.GetObject());
+                    if (book.Id.Length > 0 && book.Id != "0" && !string.IsNullOrWhiteSpace(book.Title) && ids.Add(book.Id)) books.Add(book);
+                }
+                CollectSearchBooks(cell.GetNamedArray("cell_data", new JsonArray()), books, ids);
+            }
         }
 
         internal static IReadOnlyList<Chapter> ParseCatalog(JsonObject json)
         {
             CheckCode(json);
             var data = json.GetNamedObject("data");
-            var byId = new Dictionary<string, Chapter>();
-            foreach (var volume in data.GetNamedArray("chapterListWithVolume"))
-                foreach (var value in volume.GetArray())
-                {
-                    var item = value.GetObject();
-                    var id = Text(item, "itemId");
-                    if (id.Length == 0) throw new InvalidDataException("目录章节缺少标识。");
-                    var free = Text(item, "needPay") == "0" && ExplicitFalse(item, "isChapterLock") && ExplicitFalse(item, "isPaidPublication") && ExplicitFalse(item, "isPaidStory");
-                    byId[id] = new Chapter(id, Text(item, "title") + (free ? "" : " · 受限或状态未确认"), free);
-                }
             var chapters = new List<Chapter>();
             var seen = new HashSet<string>();
-            foreach (var idValue in data.GetNamedArray("allItemIds"))
+            foreach (var value in data.GetNamedArray("item_data_list"))
             {
-                var id = idValue.GetString();
-                Chapter chapter;
-                if (!byId.TryGetValue(id, out chapter)) throw new InvalidDataException("目录章节明细不完整。");
-                if (seen.Add(id)) chapters.Add(chapter);
+                var item = value.GetObject();
+                var id = Text(item, "item_id");
+                if (id.Length == 0) throw new InvalidDataException("目录章节缺少标识。");
+                if (seen.Add(id)) chapters.Add(new Chapter(id, Text(item, "title")));
             }
             if (chapters.Count == 0) throw new InvalidDataException("目录为空。");
             return chapters.AsReadOnly();
@@ -175,7 +167,6 @@ namespace FanqieReader.Services
             return value.ValueType == JsonValueType.String ? value.GetString() : value.Stringify();
         }
         private static bool Flag(JsonObject json, string key) { var value = Text(json, key); return value == "true" || value == "1"; }
-        private static bool ExplicitFalse(JsonObject json, string key) { var value = Text(json, key); return value == "false" || value == "0"; }
         private static KeyValuePair<string, string> Pair(string key, string value) { return new KeyValuePair<string, string>(key, value); }
         internal static string BuildQuery(IEnumerable<KeyValuePair<string, string>> extra, DeviceState device = null)
         {

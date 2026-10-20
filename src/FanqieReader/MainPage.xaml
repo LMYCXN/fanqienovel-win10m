@@ -6,41 +6,8 @@
     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
     <StackPanel Margin="16,16,16,4">
       <TextBlock Text="番茄阅读原型" FontSize="26" />
-      <TextBlock Text="Lumia · 原生联网与阅读验证" Opacity="0.65" Margin="0,4,0,0" />
     </StackPanel>
-    <Pivot x:Name="MainPivot" Grid.Row="1" SelectionChanged="MainPivot_SelectionChanged">
-      <PivotItem Header="诊断">
-        <ScrollViewer>
-          <StackPanel Margin="16,4,16,24">
-            <TextBlock x:Name="DeviceInfoText" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-            <TextBlock Text="依次检查官网、阅读网关和免费样本目录。每项最多 20 秒。" TextWrapping="Wrap" Margin="0,16,0,8" />
-            <TextBox x:Name="CustomUrlBox" Header="自有 HTTPS 测试地址（可选）" PlaceholderText="https://你的测试地址" InputScope="Url" />
-            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-              <Button x:Name="RunDiagnosticsButton" Content="开始检查" Click="RunDiagnostics_Click" />
-              <Button x:Name="CancelDiagnosticsButton" Content="取消" Click="CancelDiagnostics_Click" IsEnabled="False" Margin="8,0,0,0" />
-              <Button x:Name="CopyDiagnosticsButton" Content="复制结果" Click="CopyDiagnostics_Click" IsEnabled="False" Margin="8,0,0,0" />
-            </StackPanel>
-            <ProgressBar x:Name="NetworkProgress" IsIndeterminate="True" Visibility="Collapsed" Margin="0,12,0,0" />
-            <TextBlock x:Name="NetworkStatusText" Text="尚未执行检查。" TextWrapping="Wrap" Margin="0,12,0,12" />
-            <ItemsControl x:Name="DiagnosticsList">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Border BorderBrush="{ThemeResource SystemControlForegroundBaseLowBrush}" BorderThickness="0,0,0,1" Padding="0,12">
-                    <StackPanel>
-                      <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                      <TextBlock Text="{Binding Metrics}" Margin="0,4,0,0" />
-                      <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" Margin="0,4,0,0" />
-                      <TextBlock Text="{Binding ErrorCode}" IsTextSelectionEnabled="True" />
-                    </StackPanel>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </StackPanel>
-        </ScrollViewer>
-      </PivotItem>
-      <PivotItem Header="阅读">
-        <Grid Margin="12,0,12,8">
+        <Grid Grid.Row="1" Margin="12,8,12,8">
           <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
           <StackPanel Margin="4,0,4,8">
             <TextBlock x:Name="ReaderStatusText" Text="离线演示数据" TextWrapping="Wrap" />
@@ -66,13 +33,15 @@
               <Button x:Name="LoadMoreButton" Grid.Row="4" Content="加载更多" Click="LoadMore_Click" Visibility="Collapsed" HorizontalAlignment="Stretch" />
             </Grid>
             <Grid x:Name="CatalogPanel" Visibility="Collapsed">
-              <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-              <StackPanel>
-                <Button Content="返回书籍" Click="BackToBooks_Click" />
-                <TextBlock x:Name="BookTitleText" FontSize="24" TextWrapping="Wrap" Margin="0,12,0,4" />
-                <TextBlock x:Name="BookSummaryText" TextWrapping="Wrap" Margin="0,0,0,12" />
-              </StackPanel>
-              <ListView x:Name="ChaptersList" Grid.Row="1" IsItemClickEnabled="True" ItemClick="Chapter_Click" SelectionMode="None">
+              <ListView x:Name="ChaptersList" IsItemClickEnabled="True" ItemClick="Chapter_Click" SelectionMode="None">
+                <ListView.Header>
+                  <StackPanel Margin="0,0,0,12">
+                    <Button Content="返回书籍" Click="BackToBooks_Click" />
+                    <TextBlock x:Name="BookTitleText" FontSize="24" TextWrapping="Wrap" Margin="0,12,0,4" />
+                    <TextBlock x:Name="BookSummaryText" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis" />
+                    <Button x:Name="SummaryToggleButton" Content="展开简介" Click="ToggleSummary_Click" Margin="0,8,0,0" />
+                  </StackPanel>
+                </ListView.Header>
                 <ListView.ItemTemplate><DataTemplate><TextBlock Text="{Binding Title}" Padding="0,12" TextWrapping="Wrap" /></DataTemplate></ListView.ItemTemplate>
               </ListView>
             </Grid>
@@ -98,7 +67,5 @@
             </Grid>
           </Grid>
         </Grid>
-      </PivotItem>
-    </Pivot>
   </Grid>
 </Page>

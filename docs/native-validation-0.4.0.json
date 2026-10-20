@@ -1,0 +1,28 @@
+{
+  "validatedOn": "2026-10-20",
+  "version": "0.4.0.0",
+  "environment": "Windows PC; native C# and Windows.Web.Http",
+  "coreAssertions": 62,
+  "metadataAndProtectedStoreAssertions": 16,
+  "search": {
+    "bookId": "7665193065501445145",
+    "title": "神通者",
+    "author": "天蚕土豆",
+    "originalFeaturedCardType": 549,
+    "titleSearchPassed": true,
+    "authorSearchPassed": true,
+    "paginationPassed": true,
+    "titleSearchResults": 10,
+    "nextPageResults": 9,
+    "authorSearchResults": 9
+  },
+  "laterChapters": [
+    { "bookId": "7665193065501445145", "chapterId": "7678530145342194238", "title": "第49章 突破！大神通者！", "paragraphs": 72, "complete": true },
+    { "bookId": "7069948840148732967", "chapterId": "7083521020400763392", "title": "第50章 轰动飞雪城", "paragraphs": 64, "complete": true }
+  ],
+  "armReleaseBuildPassed": true,
+  "phoneRuntimeVerified": true,
+  "phoneLayoutVerified": true,
+  "phoneEvidence": "phone-validation-0.4.0.json",
+  "reproduce": ".\\tools\\Test-Metadata.ps1 -Regressions"
+}
