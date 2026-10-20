@@ -52,7 +52,6 @@
     <Compile Include="Services\OnlineBookSource.cs" />
     <Compile Include="Services\OnlineTransport.cs" />
     <Compile Include="Services\DeviceSession.cs" />
-    <Compile Include="Services\NetworkDiagnostics.cs" />
     <Compile Include="Services\ReaderSettingsStore.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <AppxManifest Include="Package.appxmanifest"><SubType>Designer</SubType></AppxManifest>

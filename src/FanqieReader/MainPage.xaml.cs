@@ -5,11 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using FanqieReader.Core;
 using FanqieReader.Services;
-using Windows.ApplicationModel;
-using Windows.ApplicationModel.DataTransfer;
-using Windows.Data.Json;
 using Windows.System;
-using Windows.System.Profile;
 using Windows.UI;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
@@ -27,23 +23,19 @@ namespace FanqieReader
         private bool IsOnline { get { return source is OnlineBookSource; } }
         private bool CanResume { get { return !string.IsNullOrEmpty(settings.BookId) && (IsOnline ? "online" : "demo") == settings.Source; } }
         private CancellationTokenSource readerCancellation;
-        private readonly ObservableCollection<DiagnosticResult> results = new ObservableCollection<DiagnosticResult>();
         private readonly ReaderSettingsStore settings = new ReaderSettingsStore();
-        private CancellationTokenSource diagnosticCancellation;
-        private DateTimeOffset diagnosticStartedAt;
         private Book currentBook;
         private IReadOnlyList<Chapter> currentCatalog;
         private ReadingSession session;
         private bool initialized;
         private bool readerBusy;
+        private bool summaryExpanded;
         private string readerView = "books";
 
         public MainPage()
         {
             InitializeComponent();
-            DiagnosticsList.ItemsSource = results;
             BooksList.ItemsSource = visibleBooks;
-            DeviceInfoText.Text = GetDeviceInfo();
             NightSwitch.IsOn = settings.IsNight;
             if (settings.Source == "online")
             {
@@ -66,8 +58,7 @@ namespace FanqieReader
         protected override void OnNavigatedFrom(NavigationEventArgs args)
         {
             SystemNavigationManager.GetForCurrentView().BackRequested -= BackRequested;
-            CancelDiagnostics();
-            readerCancellation?.Cancel();
+            CancelPendingLoad();
             base.OnNavigatedFrom(args);
         }
 
@@ -77,90 +68,7 @@ namespace FanqieReader
             await ReaderActionAsync(SearchAsync);
         }
 
-        private static string GetDeviceInfo()
-        {
-            ulong version;
-            var raw = AnalyticsInfo.VersionInfo.DeviceFamilyVersion;
-            var formatted = ulong.TryParse(raw, out version)
-                ? string.Format("{0}.{1}.{2}.{3}", version >> 48, (version >> 32) & 65535, (version >> 16) & 65535, version & 65535)
-                : raw;
-            return AnalyticsInfo.VersionInfo.DeviceFamily + " · " + formatted + "\n应用架构：" + Package.Current.Id.Architecture;
-        }
-
-        private async void RunDiagnostics_Click(object sender, RoutedEventArgs args)
-        {
-            if (diagnosticCancellation != null) return;
-            var targets = new List<DiagnosticTarget>(NetworkDiagnostics.DefaultTargets());
-            var custom = CustomUrlBox.Text.Trim();
-            if (custom.Length > 0)
-            {
-                Uri uri;
-                if (!Uri.TryCreate(custom, UriKind.Absolute, out uri) || uri.Scheme != "https" || !string.IsNullOrEmpty(uri.UserInfo))
-                {
-                    NetworkStatusText.Text = "请输入不含用户名和密码的 HTTPS 地址。";
-                    return;
-                }
-                targets.Add(new DiagnosticTarget("自有 HTTPS 服务", custom));
-            }
-
-            diagnosticCancellation = new CancellationTokenSource();
-            RunDiagnosticsButton.IsEnabled = false;
-            CustomUrlBox.IsEnabled = false;
-            CancelDiagnosticsButton.IsEnabled = true;
-            CopyDiagnosticsButton.IsEnabled = false;
-            NetworkProgress.Visibility = Visibility.Visible;
-            results.Clear();
-            diagnosticStartedAt = DateTimeOffset.UtcNow;
-            try
-            {
-                var diagnostics = new NetworkDiagnostics();
-                foreach (var target in targets)
-                {
-                    if (diagnosticCancellation.IsCancellationRequested) break;
-                    NetworkStatusText.Text = "正在检查：" + target.Name;
-                    results.Add(await diagnostics.RunAsync(target, diagnosticCancellation.Token));
-                }
-                NetworkStatusText.Text = diagnosticCancellation.IsCancellationRequested ? "检查已取消。" : "检查结束。可复制结果用于排查。";
-            }
-            catch (Exception error)
-            {
-                NetworkStatusText.Text = "检查失败：" + error.Message;
-            }
-            finally
-            {
-                diagnosticCancellation.Dispose();
-                diagnosticCancellation = null;
-                RunDiagnosticsButton.IsEnabled = true;
-                CustomUrlBox.IsEnabled = true;
-                CancelDiagnosticsButton.IsEnabled = false;
-                CopyDiagnosticsButton.IsEnabled = results.Count > 0;
-                NetworkProgress.Visibility = Visibility.Collapsed;
-            }
-        }
-
-        public void CancelDiagnostics() { diagnosticCancellation?.Cancel(); }
-        private void CancelDiagnostics_Click(object sender, RoutedEventArgs args) { CancelDiagnostics(); }
-
-        private void CopyDiagnostics_Click(object sender, RoutedEventArgs args)
-        {
-            try
-            {
-                var probes = new JsonArray();
-                foreach (var result in results) probes.Add(result.ToJson());
-                var report = new JsonObject
-                {
-                    ["startedAtUtc"] = JsonValue.CreateStringValue(diagnosticStartedAt.ToString("o")),
-                    ["device"] = JsonValue.CreateStringValue(DeviceInfoText.Text),
-                    ["appVersion"] = JsonValue.CreateStringValue(Package.Current.Id.Version.Major + "." + Package.Current.Id.Version.Minor + "." + Package.Current.Id.Version.Build),
-                    ["probes"] = probes
-                };
-                var data = new DataPackage();
-                data.SetText(report.Stringify());
-                Clipboard.SetContent(data);
-                NetworkStatusText.Text = "结果已复制。";
-            }
-            catch (Exception error) { NetworkStatusText.Text = "复制失败：" + error.Message; }
-        }
+        public void CancelPendingLoad() { readerCancellation?.Cancel(); }
 
         private async Task ReaderActionAsync(Func<Task> action)
         {
@@ -247,6 +155,8 @@ namespace FanqieReader
             currentCatalog = catalog;
             BookTitleText.Text = currentBook.Title;
             BookSummaryText.Text = currentBook.Summary;
+            summaryExpanded = false;
+            UpdateSummary();
             ChaptersList.ItemsSource = currentCatalog;
             ReaderStatusText.Text = (IsOnline ? "番茄在线 · " : "离线演示数据 · ") + currentCatalog.Count + " 章";
             ShowReaderView("catalog");
@@ -319,6 +229,20 @@ namespace FanqieReader
         private void BackToBooks_Click(object sender, RoutedEventArgs args) { ShowReaderView("books"); }
         private void BackToCatalog_Click(object sender, RoutedEventArgs args) { ShowReaderView("catalog"); }
 
+        private void ToggleSummary_Click(object sender, RoutedEventArgs args)
+        {
+            summaryExpanded = !summaryExpanded;
+            UpdateSummary();
+        }
+
+        private void UpdateSummary()
+        {
+            BookSummaryText.MaxLines = summaryExpanded ? 0 : 4;
+            BookSummaryText.TextTrimming = summaryExpanded ? TextTrimming.None : TextTrimming.CharacterEllipsis;
+            SummaryToggleButton.Content = summaryExpanded ? "收起简介" : "展开简介";
+            SummaryToggleButton.Visibility = string.IsNullOrWhiteSpace(BookSummaryText.Text) ? Visibility.Collapsed : Visibility.Visible;
+        }
+
         private void SmallerFont_Click(object sender, RoutedEventArgs args) { SaveAppearance(settings.FontSize - 2); }
         private void LargerFont_Click(object sender, RoutedEventArgs args) { SaveAppearance(settings.FontSize + 2); }
         private void NightSwitch_Toggled(object sender, RoutedEventArgs args)
@@ -364,24 +288,18 @@ namespace FanqieReader
         private void UpdateBackButton()
         {
             if (!initialized) return;
-            SystemNavigationManager.GetForCurrentView().AppViewBackButtonVisibility = MainPivot.SelectedIndex == 1 && readerView != "books"
+            SystemNavigationManager.GetForCurrentView().AppViewBackButtonVisibility = readerView != "books"
                 ? AppViewBackButtonVisibility.Visible : AppViewBackButtonVisibility.Collapsed;
         }
 
-        private void MainPivot_SelectionChanged(object sender, SelectionChangedEventArgs args) { UpdateBackButton(); }
         private void BackRequested(object sender, BackRequestedEventArgs args)
         {
             if (args.Handled) return;
             if (readerBusy) { args.Handled = true; readerCancellation?.Cancel(); return; }
-            if (MainPivot.SelectedIndex == 1 && readerView != "books")
+            if (readerView != "books")
             {
                 args.Handled = true;
                 ShowReaderView(readerView == "reading" ? "catalog" : "books");
-            }
-            else if (diagnosticCancellation != null)
-            {
-                args.Handled = true;
-                CancelDiagnostics();
             }
         }
     }

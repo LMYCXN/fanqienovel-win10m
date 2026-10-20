@@ -29,7 +29,7 @@ namespace FanqieReader
         {
             // Settings are committed as the user changes chapters or controls.
             var page = (Window.Current.Content as Frame)?.Content as MainPage;
-            page?.CancelDiagnostics();
+            page?.CancelPendingLoad();
         }
     }
 }

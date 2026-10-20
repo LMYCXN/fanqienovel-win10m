@@ -19,8 +19,7 @@ namespace FanqieReader.Core
     {
         public string Id { get; private set; }
         public string Title { get; private set; }
-        public bool IsFreeConfirmed { get; private set; }
-        public Chapter(string id, string title, bool isFreeConfirmed = false) { Id = id; Title = title; IsFreeConfirmed = isFreeConfirmed; }
+        public Chapter(string id, string title) { Id = id; Title = title; }
     }
 
     public sealed class ChapterContent

@@ -7,6 +7,7 @@ using FanqieReader.Core;
 using Windows.Data.Json;
 using Windows.Foundation.Metadata;
 using Windows.Security.Cryptography;
+using Windows.Storage.Streams;
 using Windows.Web.Http;
 using Windows.Web.Http.Filters;
 
@@ -42,7 +43,7 @@ namespace FanqieReader.Services
                         using (var response = await client.SendRequestAsync(request, HttpCompletionOption.ResponseHeadersRead).AsTask(timeout.Token))
                         {
                             if (!response.IsSuccessStatusCode) throw new InvalidOperationException("HTTP " + (int)response.StatusCode);
-                            var bytes = await NetworkDiagnostics.ReadBodyAsync(response, timeout.Token);
+                            var bytes = await ReadBodyAsync(response, timeout.Token);
                             if (bytes.Length == 0) throw new InvalidDataException("服务返回空响应，请稍后重试。");
                             return JsonObject.Parse(Encoding.UTF8.GetString(bytes, 0, bytes.Length));
                         }
@@ -53,6 +54,26 @@ namespace FanqieReader.Services
                     if (cancellationToken.IsCancellationRequested) throw;
                     throw new TimeoutException("请求超过 20 秒，请检查网络后重试。");
                 }
+            }
+        }
+
+        internal static async Task<byte[]> ReadBodyAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+        {
+            const int maxBodyBytes = 1024 * 1024;
+            using (var stream = await response.Content.ReadAsInputStreamAsync().AsTask(cancellationToken))
+            using (var output = new MemoryStream())
+            {
+                while (true)
+                {
+                    var buffer = new Windows.Storage.Streams.Buffer(32768);
+                    var read = await stream.ReadAsync(buffer, buffer.Capacity, InputStreamOptions.Partial).AsTask(cancellationToken);
+                    if (read.Length == 0) break;
+                    if (output.Length + read.Length > maxBodyBytes) throw new InvalidDataException("响应超过 1 MiB 上限。");
+                    var bytes = new byte[(int)read.Length];
+                    using (var reader = DataReader.FromBuffer(read)) reader.ReadBytes(bytes);
+                    output.Write(bytes, 0, bytes.Length);
+                }
+                return output.ToArray();
             }
         }
     }

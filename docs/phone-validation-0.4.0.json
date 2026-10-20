@@ -1,0 +1,18 @@
+{
+  "reportedOn": "2026-10-20",
+  "evidenceType": "user-report",
+  "userReply": "全部正常",
+  "packageVersion": "0.4.0.0",
+  "packageSha256": "DF5844A08C9E60FBA969756209AC40A8E354DE8AAD29F7F216A454ECA4324820",
+  "device": "Lumia 950 (RM-1105)",
+  "osVersion": "10.0.15254.603",
+  "diagnosticsRemoved": true,
+  "exactTitleSearchPassed": true,
+  "sampleTitle": "神通者",
+  "sampleAuthor": "天蚕土豆",
+  "summaryExpandCollapsePassed": true,
+  "summaryAndCatalogScrollingPassed": true,
+  "laterChapterReadingPassed": true,
+  "requestedLaterChapter": "第49章",
+  "returnToCatalogPassed": true
+}
