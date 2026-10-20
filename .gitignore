@@ -7,3 +7,4 @@ artifacts/
 *.suo
 *.pfx
 *.cer
+/CODEX_PROJECT_CONTEXT.md
