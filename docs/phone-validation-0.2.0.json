@@ -1,0 +1,13 @@
+{
+  "reportedOn": "2026-10-19",
+  "evidenceType": "user-report",
+  "userReply": "搜索、简介和目录都正常",
+  "packageVersion": "0.2.0.0",
+  "packageSha256": "76F5D91E24B3A757E5C92333F401911BB0524013132A048902B8C2A7F0AE354C",
+  "device": "Lumia 950 (RM-1105)",
+  "osVersion": "10.0.15254.603",
+  "onlineSearchPassed": true,
+  "bookDetailsPassed": true,
+  "catalogPassed": true,
+  "onlineChapterContentVerifiedOnPhone": false
+}

@@ -1,0 +1,21 @@
+{
+  "validatedOn": "2026-10-19",
+  "environment": "Windows PC; native C# and Windows.Web.Http",
+  "coreAssertions": 62,
+  "metadataAndProtectedStoreAssertions": 14,
+  "bookId": "7069948840148732967",
+  "chapterId": "7069952706521236001",
+  "liveFreeChapter": {
+    "paragraphs": 122,
+    "declaredParagraphsMatch": true,
+    "declaredFreeParagraphsMatch": true,
+    "textCharacters": 4223,
+    "hanCharacters": 3657,
+    "complete": true,
+    "protectedSessionReusable": true
+  },
+  "chapterTextOrKeyPlaintextStored": false,
+  "phoneOnlineChapterVerified": true,
+  "phoneEvidence": "phone-validation-0.3.0.json",
+  "reproduce": ".\\tools\\Test-Metadata.ps1 -FreeContent"
+}

@@ -1,0 +1,246 @@
+{
+  "checkedAt": "2026-10-19T07:08:05.989Z",
+  "node": "v24.19.0",
+  "sourceCommit": "b62ec5dbe6149a93bca249949549c805ac7da424",
+  "policy": "GET only; no cookies, registration, premium activation, device replacement, or retries; response bodies omitted",
+  "offline": {
+    "signature": {
+      "generated": true,
+      "elapsedMs": 9,
+      "headerLengths": {
+        "x-argus": 280,
+        "x-ladon": 48,
+        "x-khronos": 10,
+        "x-ss-req-ticket": 13
+      },
+      "meaning": "Local generation only; does not establish server acceptance"
+    },
+    "syntheticContent": {
+      "passed": true,
+      "meaning": "Synthetic fixture with a freshly generated local key; no service content or service key used"
+    }
+  },
+  "probes": [
+    {
+      "name": "web-control",
+      "endpoint": "https://fanqienovel.com/",
+      "signed": false,
+      "httpStatus": 200,
+      "bytes": 163347,
+      "contentType": "text/html; charset=utf-8",
+      "elapsedMs": 799
+    },
+    {
+      "name": "web-catalog",
+      "endpoint": "https://fanqienovel.com/api/reader/directory/detail",
+      "signed": false,
+      "httpStatus": 200,
+      "bytes": 100914,
+      "contentType": "application/json; charset=utf-8",
+      "code": 0,
+      "message": "success",
+      "topKeys": [
+        "data",
+        "code",
+        "message",
+        "log_id",
+        "now"
+      ],
+      "dataKeys": [
+        "allItemIds",
+        "volumeNameList",
+        "chapterListWithVolume"
+      ],
+      "catalogChapters": 351,
+      "elapsedMs": 208
+    },
+    {
+      "name": "signed-web-search",
+      "endpoint": "https://fanqienovel.com/reading/bookapi/search/tab/v",
+      "signed": true,
+      "httpStatus": 200,
+      "bytes": 453130,
+      "contentType": "application/json; charset=utf-8",
+      "code": 0,
+      "message": "SUCCESS",
+      "topKeys": [
+        "code",
+        "message",
+        "search_tabs",
+        "selected_tab_idx",
+        "server_ab_params",
+        "log_id"
+      ],
+      "searchCells": [
+        {
+          "tabType": 1,
+          "cells": 10
+        },
+        {
+          "tabType": 4,
+          "cells": 0
+        },
+        {
+          "tabType": 11,
+          "cells": 0
+        },
+        {
+          "tabType": 19,
+          "cells": 0
+        },
+        {
+          "tabType": 8,
+          "cells": 0
+        },
+        {
+          "tabType": 2,
+          "cells": 0
+        },
+        {
+          "tabType": 3,
+          "cells": 0
+        },
+        {
+          "tabType": 13,
+          "cells": 0
+        },
+        {
+          "tabType": 5,
+          "cells": 0
+        },
+        {
+          "tabType": 6,
+          "cells": 0
+        }
+      ],
+      "elapsedMs": 1804
+    },
+    {
+      "name": "signed-app-detail",
+      "endpoint": "https://reading.snssdk.com/reading/bookapi/detail/v",
+      "signed": true,
+      "httpStatus": 200,
+      "bytes": 35184,
+      "contentType": "application/json; charset=utf-8",
+      "code": 0,
+      "message": "SUCCESS",
+      "topKeys": [
+        "code",
+        "message",
+        "data"
+      ],
+      "dataKeys": [
+        "thumb_uri",
+        "high_quality_tags",
+        "score",
+        "listen_uv_30day",
+        "first_chapter_item_id",
+        "contract_authorize",
+        "feed_recommend_text",
+        "external_uid",
+        "authorize_type",
+        "color_most_popular",
+        "category_v2_ids",
+        "last_chapter_update_time",
+        "add_bookshelf_count",
+        "keep_publish_days",
+        "flight_user_selected",
+        "genre",
+        "all_bookshelf_count",
+        "finish_rate_10",
+        "horiz_thumb_url",
+        "ownership_type",
+        "author_modify_chapter_switch",
+        "reader_uv_14day",
+        "first_chapter_group_id",
+        "second_chapter_item_id",
+        "feed_recommend_big_picture_height",
+        "is_laobai",
+        "feed_recommend_big_picture_format",
+        "real_exclusive",
+        "has_mbd",
+        "reverse_sync_reputation_thumb_uri",
+        "total_price",
+        "first_visible_time",
+        "category_fm",
+        "creation_status",
+        "visibility_info"
+      ],
+      "contentCharacters": 7073,
+      "contentInvalid": false,
+      "keyVersionPresent": false,
+      "elapsedMs": 366
+    },
+    {
+      "name": "signed-app-catalog",
+      "endpoint": "https://reading.snssdk.com/reading/bookapi/directory/all_items/v",
+      "signed": true,
+      "httpStatus": 200,
+      "bytes": 138470,
+      "contentType": "application/json; charset=utf-8",
+      "code": 0,
+      "message": "SUCCESS",
+      "topKeys": [
+        "message",
+        "data",
+        "ban_recover",
+        "code"
+      ],
+      "dataKeys": [
+        "book_info",
+        "additional_item_data_list",
+        "item_list",
+        "catalog_data",
+        "item_data_list",
+        "origin_chapter_ad_status",
+        "disable_author_ad",
+        "update_notice_list",
+        "field_cache_status"
+      ],
+      "catalogChapters": 351,
+      "elapsedMs": 194
+    },
+    {
+      "name": "web-free-chapter",
+      "endpoint": "https://fanqienovel.com/api/reader/full",
+      "signed": false,
+      "httpStatus": 200,
+      "bytes": 0,
+      "contentType": "application/json",
+      "elapsedMs": 158
+    },
+    {
+      "name": "signed-app-free-chapter",
+      "endpoint": "https://reading.snssdk.com/reading/reader/full/v",
+      "signed": true,
+      "httpStatus": 200,
+      "bytes": 25941,
+      "contentType": "application/json; charset=utf-8",
+      "code": 0,
+      "message": "SUCCESS",
+      "topKeys": [
+        "code",
+        "data",
+        "message"
+      ],
+      "dataKeys": [
+        "author_speak",
+        "compress_status",
+        "content",
+        "crypt_status",
+        "free_para_nums",
+        "key_version",
+        "novel_data",
+        "paragraphs_num",
+        "parse_mode",
+        "text_type",
+        "title"
+      ],
+      "contentCharacters": 10776,
+      "contentInvalid": false,
+      "keyVersionPresent": true,
+      "elapsedMs": 149
+    }
+  ],
+  "sampleChapterId": "7069952706521236001"
+}

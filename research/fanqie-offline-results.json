@@ -1,0 +1,24 @@
+{
+  "checkedAt": "2026-10-19T07:06:50.462Z",
+  "node": "v24.19.0",
+  "sourceCommit": "b62ec5dbe6149a93bca249949549c805ac7da424",
+  "policy": "GET only; no cookies, registration, premium activation, device replacement, or retries; response bodies omitted",
+  "offline": {
+    "signature": {
+      "generated": true,
+      "elapsedMs": 17,
+      "headerLengths": {
+        "x-argus": 280,
+        "x-ladon": 48,
+        "x-khronos": 10,
+        "x-ss-req-ticket": 13
+      },
+      "meaning": "Local generation only; does not establish server acceptance"
+    },
+    "syntheticContent": {
+      "passed": true,
+      "meaning": "Synthetic fixture with a freshly generated local key; no service content or service key used"
+    }
+  },
+  "probes": []
+}

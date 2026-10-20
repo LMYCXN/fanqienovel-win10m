@@ -1,0 +1,16 @@
+{
+  "reportedOn": "2026-10-19",
+  "evidenceType": "user-report",
+  "userReply": "正常 三个通过",
+  "packageVersion": "0.1.0.0",
+  "packageSha256": "7BCFFCBFE23AEFB87710355EB101B1D2149D6EFC63241CB7E1FEF2B2565D34DF",
+  "device": "Lumia 950 (RM-1105)",
+  "osVersion": "10.0.15254.603",
+  "installation": "USB deployment tool exited 0 with Done",
+  "startupPassed": true,
+  "demoReadingPassed": true,
+  "diagnosticsPassed": ["官网 HTTPS", "阅读网关 TLS", "样本书籍目录"],
+  "rawDiagnosticJsonAvailable": false,
+  "onlineSearchVerifiedOnPhone": false,
+  "onlineChapterContentVerifiedOnPhone": false
+}

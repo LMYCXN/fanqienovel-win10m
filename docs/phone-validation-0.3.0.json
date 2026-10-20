@@ -1,0 +1,16 @@
+{
+  "reportedOn": "2026-10-19",
+  "evidenceType": "user-report",
+  "userReply": "正文、翻章和继续阅读都正常",
+  "packageVersion": "0.3.0.0",
+  "packageSha256": "A44FDF3345DECA539D20A9727793C2081D68B229770283E5D377BC89A1D0BA7C",
+  "device": "Lumia 950 (RM-1105)",
+  "osVersion": "10.0.15254.603",
+  "sampleBook": "部族荣光",
+  "sampleBookId": "7069948840148732967",
+  "requestedFirstChapter": "第1章 部族生死战",
+  "chineseChapterTextPassed": true,
+  "nextChapterPassed": true,
+  "resumeAfterRelaunchPassed": true,
+  "rawPhoneDiagnosticJsonAvailable": false
+}

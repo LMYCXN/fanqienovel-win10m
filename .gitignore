@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+.vs/
+artifacts/
+**/AppPackages/
+*.user
+*.suo
+*.pfx
+*.cer

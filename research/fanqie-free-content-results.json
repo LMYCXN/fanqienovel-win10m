@@ -1,0 +1,87 @@
+{
+  "checkedAt": "2026-10-19T07:10:12.850Z",
+  "node": "v24.19.0",
+  "sourceCommit": "b62ec5dbe6149a93bca249949549c805ac7da424",
+  "policy": "One anonymous device and one key registration; one free chapter; no cookies, premium activation, device replacement, or retries; keys and content omitted",
+  "offline": {
+    "signature": {
+      "generated": true,
+      "elapsedMs": 10,
+      "headerLengths": {
+        "x-argus": 280,
+        "x-ladon": 48,
+        "x-khronos": 10,
+        "x-ss-req-ticket": 13
+      },
+      "meaning": "Local generation only; does not establish server acceptance"
+    },
+    "syntheticContent": {
+      "passed": true,
+      "meaning": "Synthetic fixture with a freshly generated local key; no service content or service key used"
+    }
+  },
+  "probes": [
+    {
+      "name": "register-one-anonymous-device",
+      "endpoint": "https://i.snssdk.com/service/2/device_register/",
+      "method": "POST",
+      "httpStatus": 200,
+      "bytes": 312
+    },
+    {
+      "name": "register-content-key",
+      "endpoint": "https://reading.snssdk.com/reading/crypt/registerkey",
+      "method": "POST",
+      "httpStatus": 200,
+      "bytes": 127
+    },
+    {
+      "name": "fresh-device-free-chapter",
+      "endpoint": "https://reading.snssdk.com/reading/reader/full/v",
+      "signed": true,
+      "httpStatus": 200,
+      "bytes": 25944,
+      "contentType": "application/json; charset=utf-8",
+      "code": 0,
+      "message": "SUCCESS",
+      "topKeys": [
+        "code",
+        "data",
+        "message"
+      ],
+      "dataKeys": [
+        "author_speak",
+        "compress_status",
+        "content",
+        "crypt_status",
+        "free_para_nums",
+        "key_version",
+        "novel_data",
+        "paragraphs_num",
+        "parse_mode",
+        "text_type",
+        "title"
+      ],
+      "contentCharacters": 10776,
+      "contentInvalid": false,
+      "keyVersionPresent": true,
+      "elapsedMs": 246
+    }
+  ],
+  "deviceRegistered": true,
+  "keyRegistered": true,
+  "sampleChapterId": "7069952706521236001",
+  "freeChapter": {
+    "decrypted": true,
+    "plaintextType": "string",
+    "plaintextCharacters": 16136,
+    "containsHanCharacters": true,
+    "htmlParagraphs": 243,
+    "advertisedParagraphs": 243,
+    "advertisedFreeParagraphs": 243,
+    "advertisedWordCount": "4223",
+    "cryptStatus": 0,
+    "compressStatus": 1,
+    "keyVersionMatches": true
+  }
+}
