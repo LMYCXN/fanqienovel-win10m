@@ -33,6 +33,7 @@
               <Button x:Name="LoadMoreButton" Grid.Row="4" Content="加载更多" Click="LoadMore_Click" Visibility="Collapsed" HorizontalAlignment="Stretch" />
             </Grid>
             <Grid x:Name="CatalogPanel" Visibility="Collapsed">
+              <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
               <ListView x:Name="ChaptersList" IsItemClickEnabled="True" ItemClick="Chapter_Click" SelectionMode="None">
                 <ListView.Header>
                   <StackPanel Margin="0,0,0,12">
@@ -44,6 +45,13 @@
                 </ListView.Header>
                 <ListView.ItemTemplate><DataTemplate><TextBlock Text="{Binding Title}" Padding="0,12" TextWrapping="Wrap" /></DataTemplate></ListView.ItemTemplate>
               </ListView>
+              <StackPanel Grid.Row="1" Margin="0,8,0,0">
+                <TextBlock x:Name="CatalogPageText" HorizontalAlignment="Center" Margin="0,0,0,8" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                  <Button x:Name="CatalogPreviousButton" Content="上一页" Click="CatalogPrevious_Click" />
+                  <Button x:Name="CatalogNextButton" Content="下一页" Click="CatalogNext_Click" Margin="12,0,0,0" />
+                </StackPanel>
+              </StackPanel>
             </Grid>
             <Grid x:Name="ReadingPanel" Visibility="Collapsed">
               <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
