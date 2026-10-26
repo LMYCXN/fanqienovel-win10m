@@ -24,6 +24,8 @@ namespace FanqieReader
     {
         private readonly OnlineBookSource source = new OnlineBookSource();
         private readonly ObservableCollection<Book> visibleBooks = new ObservableCollection<Book>();
+        private readonly ObservableCollection<Book> recommendedBooks = new ObservableCollection<Book>();
+        private readonly ObservableCollection<LibraryEntry> libraryEntries = new ObservableCollection<LibraryEntry>();
         private bool CanResume { get { return !string.IsNullOrEmpty(settings.BookId) && !string.IsNullOrEmpty(settings.ChapterId); } }
         private CancellationTokenSource readerCancellation;
         private readonly ReaderSettingsStore settings = new ReaderSettingsStore();
@@ -35,17 +37,21 @@ namespace FanqieReader
         private bool initialized;
         private bool readerBusy;
         private bool summaryExpanded;
+        private bool recommendationsLoaded;
         private string readerView = "books";
+        private string bookListView = "books";
 
         public MainPage()
         {
             InitializeComponent();
             BooksList.ItemsSource = visibleBooks;
+            RecommendationBooksList.ItemsSource = recommendedBooks;
+            LibraryBooksList.ItemsSource = libraryEntries;
             NightSwitch.IsOn = settings.IsNight;
             ResumeButton.IsEnabled = CanResume;
             initialized = true;
             ApplyAppearance();
-            Loaded += MainPage_Loaded;
+            ShowReaderView("books");
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs args)
@@ -62,12 +68,6 @@ namespace FanqieReader
             base.OnNavigatedFrom(args);
         }
 
-        private async void MainPage_Loaded(object sender, RoutedEventArgs args)
-        {
-            Loaded -= MainPage_Loaded;
-            await ReaderActionAsync(SearchAsync);
-        }
-
         public void CancelPendingLoad() { readerCancellation?.Cancel(); }
 
         private async Task ReaderActionAsync(Func<Task> action)
@@ -77,6 +77,9 @@ namespace FanqieReader
             readerCancellation = new CancellationTokenSource();
             SearchBox.IsEnabled = false;
             LoadMoreButton.IsEnabled = false;
+            RefreshRecommendationsButton.IsEnabled = false;
+            RecommendationBooksList.IsItemClickEnabled = false;
+            LibraryBooksList.IsItemClickEnabled = false;
             UpdateCatalogNavigation();
             ReaderProgress.Visibility = Visibility.Visible;
             CancelReaderButton.Visibility = Visibility.Visible;
@@ -88,6 +91,9 @@ namespace FanqieReader
             {
                 readerCancellation.Dispose(); readerCancellation = null;
                 readerBusy = false; SearchBox.IsEnabled = true; LoadMoreButton.IsEnabled = true;
+                RefreshRecommendationsButton.IsEnabled = true;
+                RecommendationBooksList.IsItemClickEnabled = true;
+                LibraryBooksList.IsItemClickEnabled = true;
                 UpdateCatalogNavigation();
                 ReaderProgress.Visibility = Visibility.Collapsed; CancelReaderButton.Visibility = Visibility.Collapsed;
             }
@@ -100,15 +106,14 @@ namespace FanqieReader
             var books = await source.SearchAsync(SearchBox.Text, readerCancellation.Token);
             visibleBooks.Clear();
             foreach (var book in books) visibleBooks.Add(book);
-            UpdateSearchStatus();
-            ShowReaderView("books");
+            ShowReaderView(string.IsNullOrWhiteSpace(SearchBox.Text) ? "books" : "search");
         }
 
         private void UpdateSearchStatus()
         {
-            LoadMoreButton.Visibility = source.HasMore ? Visibility.Visible : Visibility.Collapsed;
-            ReaderStatusText.Text = string.IsNullOrWhiteSpace(SearchBox.Text)
-                ? "输入书名或作者开始在线搜索。" : "番茄在线 · " + visibleBooks.Count + " 本书";
+            LoadMoreButton.Visibility = readerView == "search" && source.HasMore ? Visibility.Visible : Visibility.Collapsed;
+            SearchResultsText.Text = visibleBooks.Count == 0 ? "暂时没有找到，换个书名或作者试试。" : "找到 " + visibleBooks.Count + " 本相关书籍";
+            ReaderStatusText.Text = "番茄在线 · " + visibleBooks.Count + " 本书";
         }
 
         private async void LoadMore_Click(object sender, RoutedEventArgs args)
@@ -124,6 +129,47 @@ namespace FanqieReader
         }
 
         private async void Search_Click(object sender, RoutedEventArgs args) { await ReaderActionAsync(SearchAsync); }
+        private void Home_Click(object sender, RoutedEventArgs args) { if (!readerBusy) ShowReaderView("books"); }
+        private void History_Click(object sender, RoutedEventArgs args) { if (!readerBusy) ShowReaderView("history"); }
+        private void Favorites_Click(object sender, RoutedEventArgs args) { if (!readerBusy) ShowReaderView("favorites"); }
+
+        private void LoadLibrary(string view)
+        {
+            var history = view == "history";
+            LibraryTitleText.Text = history ? "历史记录" : "收藏";
+            LibraryEmptyText.Text = history ? "暂无阅读记录" : "暂无收藏";
+            libraryEntries.Clear();
+            foreach (var entry in history ? settings.GetHistory() : settings.GetFavorites()) libraryEntries.Add(entry);
+            LibraryEmptyText.Visibility = libraryEntries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private async void LibraryBook_Click(object sender, ItemClickEventArgs args)
+        {
+            var entry = (LibraryEntry)args.ClickedItem;
+            await ReaderActionAsync(() => OpenSavedBookAsync(entry.Book.Id));
+        }
+        private async void Recommend_Click(object sender, RoutedEventArgs args)
+        {
+            if (readerBusy) return;
+            ShowReaderView("recommendations");
+            if (!recommendationsLoaded) await ReaderActionAsync(LoadRecommendationsAsync);
+        }
+
+        private async void RefreshRecommendations_Click(object sender, RoutedEventArgs args)
+        {
+            await ReaderActionAsync(LoadRecommendationsAsync);
+        }
+
+        private async Task LoadRecommendationsAsync()
+        {
+            var books = await source.GetRecommendationsAsync(readerCancellation.Token);
+            readerCancellation.Token.ThrowIfCancellationRequested();
+            recommendedBooks.Clear();
+            foreach (var book in books) recommendedBooks.Add(book);
+            recommendationsLoaded = true;
+            RecommendationsEmptyText.Visibility = recommendedBooks.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            ReaderStatusText.Text = "";
+        }
         private async void SearchBox_KeyDown(object sender, KeyRoutedEventArgs args)
         {
             if (args.Key != VirtualKey.Enter) return;
@@ -137,6 +183,7 @@ namespace FanqieReader
             var catalog = await source.GetChaptersAsync(bookId, readerCancellation.Token);
             currentBook = book;
             currentCatalog = catalog;
+            settings.UpdateBook(book);
             session = null;
             BookTitleText.Text = currentBook.Title;
             BookSummaryText.Text = currentBook.Summary;
@@ -149,8 +196,58 @@ namespace FanqieReader
                 ranges.Add("第 " + (start + 1) + "–" + Math.Min(start + CatalogPageSize, currentCatalog.Count) + " 章");
             catalogPage = 0;
             CatalogPagePicker.ItemsSource = ranges;
-            ShowCatalogPage(0);
+            var progress = settings.GetProgress(bookId);
+            var savedIndex = progress == null ? -1 : currentCatalog.ToList().FindIndex(chapter => chapter.Id == progress.ChapterId);
+            ShowCatalogPage(savedIndex < 0 ? 0 : savedIndex / CatalogPageSize);
+            UpdateBookActions();
             ShowReaderView("catalog");
+        }
+
+        private void UpdateBookActions()
+        {
+            if (currentBook == null) return;
+            FavoriteButton.Content = settings.IsFavorite(currentBook.Id) ? "取消收藏" : "收藏";
+            var progress = settings.GetProgress(currentBook.Id);
+            var hasProgress = progress != null && !string.IsNullOrEmpty(progress.ChapterId);
+            ContinueBookButton.Visibility = hasProgress ? Visibility.Visible : Visibility.Collapsed;
+            BookProgressText.Visibility = hasProgress ? Visibility.Visible : Visibility.Collapsed;
+            BookProgressText.Text = hasProgress ? progress.ProgressText : "";
+        }
+
+        private void Favorite_Click(object sender, RoutedEventArgs args)
+        {
+            if (readerBusy || currentBook == null) return;
+            try
+            {
+                settings.SetFavorite(currentBook, !settings.IsFavorite(currentBook.Id));
+                UpdateBookActions();
+            }
+            catch (Exception error) { ReaderStatusText.Text = "收藏保存失败：" + error.Message; }
+        }
+
+        private async void ContinueBook_Click(object sender, RoutedEventArgs args)
+        {
+            await ReaderActionAsync(ResumeCurrentBookAsync);
+        }
+
+        private async Task OpenSavedBookAsync(string bookId)
+        {
+            await OpenBookAsync(bookId);
+            await ResumeCurrentBookAsync();
+        }
+
+        private async Task ResumeCurrentBookAsync()
+        {
+            if (currentBook == null) return;
+            var progress = settings.GetProgress(currentBook.Id);
+            if (progress == null || string.IsNullOrEmpty(progress.ChapterId)) return;
+            if (!currentCatalog.Any(chapter => chapter.Id == progress.ChapterId))
+            {
+                ReaderStatusText.Text = "上次阅读的章节已不在目录中，请重新选择。";
+                return;
+            }
+            session = new ReadingSession(currentBook.Id, currentCatalog, progress.ChapterId);
+            await RenderChapterAsync();
         }
 
         private void ShowCatalogPage(int page)
@@ -170,6 +267,8 @@ namespace FanqieReader
             CatalogNextButton.IsEnabled = available && (catalogPage + 1) * (long)CatalogPageSize < currentCatalog.Count;
             CatalogPagePicker.IsEnabled = available && CatalogPagePicker.Items.Count > 1;
             ChaptersList.IsItemClickEnabled = !readerBusy;
+            FavoriteButton.IsEnabled = !readerBusy && currentBook != null;
+            ContinueBookButton.IsEnabled = !readerBusy && currentBook != null;
         }
 
         private void CatalogPrevious_Click(object sender, RoutedEventArgs args) { if (!readerBusy) ShowCatalogPage(catalogPage - 1); }
@@ -198,13 +297,7 @@ namespace FanqieReader
 
         private async void Resume_Click(object sender, RoutedEventArgs args)
         {
-            await ReaderActionAsync(async () =>
-            {
-                var chapterId = settings.ChapterId;
-                await OpenBookAsync(settings.BookId);
-                session = new ReadingSession(currentBook.Id, currentCatalog, chapterId);
-                await RenderChapterAsync();
-            });
+            if (CanResume) await ReaderActionAsync(() => OpenSavedBookAsync(settings.BookId));
         }
 
         private async Task RenderChapterAsync()
@@ -229,8 +322,9 @@ namespace FanqieReader
             ApplyAppearance();
             ShowReaderView("reading");
             ChapterScroller.ChangeView(null, 0, null, true);
-            settings.SaveProgress(session.BookId, chapter.Id);
+            settings.SaveProgress(currentBook, chapter);
             ResumeButton.IsEnabled = true;
+            UpdateBookActions();
         }
 
         private async Task MoveChapterAsync(int delta)
@@ -244,7 +338,7 @@ namespace FanqieReader
 
         private async void Previous_Click(object sender, RoutedEventArgs args) { await ReaderActionAsync(() => MoveChapterAsync(-1)); }
         private async void Next_Click(object sender, RoutedEventArgs args) { await ReaderActionAsync(() => MoveChapterAsync(1)); }
-        private void BackToBooks_Click(object sender, RoutedEventArgs args) { ShowReaderView("books"); }
+        private void BackToBooks_Click(object sender, RoutedEventArgs args) { if (!readerBusy) ShowReaderView(bookListView); }
         private void BackToCatalog_Click(object sender, RoutedEventArgs args) { ShowReaderView("catalog"); }
 
         private void ToggleSummary_Click(object sender, RoutedEventArgs args)
@@ -317,7 +411,7 @@ namespace FanqieReader
 
         private void ApplyAppearance()
         {
-            var backgroundColor = settings.IsNight ? Color.FromArgb(255, 27, 29, 31) : Colors.White;
+            var backgroundColor = settings.IsNight ? Color.FromArgb(255, 27, 29, 31) : Color.FromArgb(255, 247, 246, 242);
             var textColor = settings.IsNight ? Color.FromArgb(255, 224, 224, 218) : Color.FromArgb(255, 40, 40, 36);
             RequestedTheme = settings.IsNight ? ElementTheme.Dark : ElementTheme.Light;
             Background = new SolidColorBrush(backgroundColor);
@@ -362,9 +456,21 @@ namespace FanqieReader
             var returningToCatalog = view == "catalog" && readerView == "reading" && session != null;
             if (returningToCatalog) ShowCatalogPage(session.Index / CatalogPageSize);
             readerView = view;
-            BooksPanel.Visibility = view == "books" ? Visibility.Visible : Visibility.Collapsed;
+            var showingLibrary = view == "history" || view == "favorites";
+            var showingBooks = view == "books" || view == "recommendations" || view == "search" || showingLibrary;
+            if (showingBooks) bookListView = view;
+            BooksPanel.Visibility = showingBooks ? Visibility.Visible : Visibility.Collapsed;
+            HomePanel.Visibility = view == "books" ? Visibility.Visible : Visibility.Collapsed;
+            RecommendationsPanel.Visibility = view == "recommendations" ? Visibility.Visible : Visibility.Collapsed;
+            LibraryPanel.Visibility = showingLibrary ? Visibility.Visible : Visibility.Collapsed;
+            if (showingLibrary) LoadLibrary(view);
+            BooksList.Visibility = view == "search" ? Visibility.Visible : Visibility.Collapsed;
+            LoadMoreButton.Visibility = Visibility.Collapsed;
+            HomeButton.Visibility = showingBooks && view != "books" ? Visibility.Visible : Visibility.Collapsed;
             CatalogPanel.Visibility = view == "catalog" ? Visibility.Visible : Visibility.Collapsed;
             ReadingPanel.Visibility = view == "reading" ? Visibility.Visible : Visibility.Collapsed;
+            if (view == "books" || view == "recommendations" || showingLibrary) ReaderStatusText.Text = "";
+            if (view == "search") UpdateSearchStatus();
             if (view == "catalog" && currentCatalog != null)
             {
                 ReaderStatusText.Text = "番茄在线 · " + currentCatalog.Count + " 章";
@@ -391,7 +497,7 @@ namespace FanqieReader
             if (readerView != "books")
             {
                 args.Handled = true;
-                ShowReaderView(readerView == "reading" ? "catalog" : "books");
+                ShowReaderView(readerView == "reading" ? "catalog" : readerView == "catalog" ? bookListView : "books");
             }
         }
     }

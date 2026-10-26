@@ -2,31 +2,192 @@
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-  <Grid>
+  <Page.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="LineBrush" Color="#E8E5DE" />
+          <SolidColorBrush x:Key="HeroBrush" Color="#FBE9DE" />
+          <SolidColorBrush x:Key="InkBrush" Color="#322D29" />
+          <SolidColorBrush x:Key="MutedBrush" Color="#777069" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Default">
+          <SolidColorBrush x:Key="SurfaceBrush" Color="#25282B" />
+          <SolidColorBrush x:Key="LineBrush" Color="#3B3D40" />
+          <SolidColorBrush x:Key="HeroBrush" Color="#3C2B27" />
+          <SolidColorBrush x:Key="InkBrush" Color="#E0E0DA" />
+          <SolidColorBrush x:Key="MutedBrush" Color="#B6AEA6" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+      <SolidColorBrush x:Key="AccentBrush" Color="#D94F38" />
+      <Style x:Key="CardButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="{ThemeResource SurfaceBrush}" />
+        <Setter Property="Foreground" Value="{ThemeResource InkBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource LineBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="16" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="MinHeight" Value="48" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="Button">
+              <Border x:Name="CardRoot" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="12">
+                <VisualStateManager.VisualStateGroups>
+                  <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="PointerOver"><Storyboard><DoubleAnimation Storyboard.TargetName="CardRoot" Storyboard.TargetProperty="Opacity" To="0.8" Duration="0" /></Storyboard></VisualState>
+                    <VisualState x:Name="Pressed"><Storyboard><DoubleAnimation Storyboard.TargetName="CardRoot" Storyboard.TargetProperty="Opacity" To="0.6" Duration="0" /></Storyboard></VisualState>
+                    <VisualState x:Name="Disabled"><Storyboard><DoubleAnimation Storyboard.TargetName="CardRoot" Storyboard.TargetProperty="Opacity" To="0.45" Duration="0" /></Storyboard></VisualState>
+                  </VisualStateGroup>
+                  <VisualStateGroup x:Name="FocusStates">
+                    <VisualState x:Name="Unfocused" />
+                    <VisualState x:Name="Focused"><Storyboard><ObjectAnimationUsingKeyFrames Storyboard.TargetName="CardRoot" Storyboard.TargetProperty="BorderBrush"><DiscreteObjectKeyFrame KeyTime="0" Value="{StaticResource AccentBrush}" /></ObjectAnimationUsingKeyFrames></Storyboard></VisualState>
+                    <VisualState x:Name="PointerFocused" />
+                  </VisualStateGroup>
+                </VisualStateManager.VisualStateGroups>
+                <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" Padding="{TemplateBinding Padding}" HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalContentAlignment="Center" />
+              </Border>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Style>
+    </ResourceDictionary>
+  </Page.Resources>
+  <Grid MaxWidth="760">
     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
     <Grid Margin="16,16,16,4">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-      <TextBlock Text="番茄小说" FontSize="26" VerticalAlignment="Center" />
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <Border Background="{StaticResource AccentBrush}" CornerRadius="10" Width="34" Height="34" Margin="0,0,9,0">
+          <FontIcon Glyph="&#xE82D;" Foreground="White" FontSize="18" />
+        </Border>
+        <TextBlock Text="番茄小说" FontSize="23" FontWeight="SemiBold" VerticalAlignment="Center" />
+      </StackPanel>
       <ToggleSwitch x:Name="NightSwitch" Grid.Column="1" Header="夜间模式" Toggled="NightSwitch_Toggled" Margin="12,0,0,0" />
     </Grid>
         <Grid Grid.Row="1" Margin="12,8,12,8">
-          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-          <StackPanel Margin="4,0,4,8">
-            <TextBlock x:Name="ReaderStatusText" Text="输入书名或作者开始在线搜索。" TextWrapping="Wrap" />
+          <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+          <StackPanel Grid.Row="1" Margin="4,8,4,0">
+            <TextBlock x:Name="ReaderStatusText" Foreground="{ThemeResource MutedBrush}" FontSize="12" TextWrapping="Wrap" />
             <ProgressBar x:Name="ReaderProgress" IsIndeterminate="True" Visibility="Collapsed" Margin="0,6" />
             <Button x:Name="CancelReaderButton" Content="取消加载" Click="CancelReader_Click" Visibility="Collapsed" />
           </StackPanel>
-          <Grid Grid.Row="1">
+          <Grid>
             <Grid x:Name="BooksPanel">
               <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-              <TextBox x:Name="SearchBox" PlaceholderText="输入番茄书名或作者" KeyDown="SearchBox_KeyDown" />
-              <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8">
-                <Button Content="搜索" Click="Search_Click" />
-                <Button x:Name="ResumeButton" Content="继续上次阅读" Click="Resume_Click" Margin="8,0,0,0" />
-              </StackPanel>
-              <ListView x:Name="BooksList" Grid.Row="2" IsItemClickEnabled="True" ItemClick="Book_Click" SelectionMode="None">
+              <Grid Margin="0,4,0,0">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <TextBox x:Name="SearchBox" PlaceholderText="搜索书名或作者" KeyDown="SearchBox_KeyDown" MinHeight="44" Padding="12,9" Background="{ThemeResource SurfaceBrush}" BorderBrush="{ThemeResource LineBrush}" AutomationProperties.Name="搜索书名或作者" />
+                <Button Grid.Column="1" Content="搜索" Click="Search_Click" Margin="8,0,0,0" MinHeight="44" Background="{StaticResource AccentBrush}" Foreground="White" />
+              </Grid>
+              <Button x:Name="HomeButton" Grid.Row="1" Content="返回首页" Click="Home_Click" Margin="0,12" Visibility="Collapsed" />
+              <ScrollViewer x:Name="HomePanel" Grid.Row="2" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="0,12,0,0">
+                  <Button x:Name="ResumeButton" Click="Resume_Click" Style="{StaticResource CardButtonStyle}" AutomationProperties.Name="继续上次阅读">
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="42" /><ColumnDefinition /><ColumnDefinition Width="24" /></Grid.ColumnDefinitions>
+                      <FontIcon Glyph="&#xE8A5;" FontSize="24" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Left" />
+                      <TextBlock Grid.Column="1" Text="继续上次阅读" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                      <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontSize="14" />
+                    </Grid>
+                  </Button>
+                  <Button Click="Recommend_Click" Style="{StaticResource CardButtonStyle}" Margin="0,12,0,12" AutomationProperties.Name="前往推荐页面">
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="42" /><ColumnDefinition /><ColumnDefinition Width="24" /></Grid.ColumnDefinitions>
+                      <FontIcon Glyph="&#xE734;" FontSize="24" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Left" />
+                      <TextBlock Grid.Column="1" Text="推荐" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                      <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontSize="14" />
+                    </Grid>
+                  </Button>
+                  <Button Click="History_Click" Style="{StaticResource CardButtonStyle}" Margin="0,0,0,12" AutomationProperties.Name="历史记录">
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="42" /><ColumnDefinition /><ColumnDefinition Width="24" /></Grid.ColumnDefinitions>
+                      <FontIcon Glyph="&#xE81C;" FontSize="24" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Left" />
+                      <TextBlock Grid.Column="1" Text="历史记录" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                      <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontSize="14" />
+                    </Grid>
+                  </Button>
+                  <Button Click="Favorites_Click" Style="{StaticResource CardButtonStyle}" Margin="0,0,0,12" AutomationProperties.Name="收藏">
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="42" /><ColumnDefinition /><ColumnDefinition Width="24" /></Grid.ColumnDefinitions>
+                      <FontIcon Glyph="&#xE735;" FontSize="24" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Left" />
+                      <TextBlock Grid.Column="1" Text="收藏" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                      <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontSize="14" />
+                    </Grid>
+                  </Button>
+                </StackPanel>
+              </ScrollViewer>
+              <Grid x:Name="RecommendationsPanel" Grid.Row="2" Visibility="Collapsed">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <Grid Margin="4,0,0,12">
+                  <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                  <TextBlock Text="推荐" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
+                  <Button x:Name="RefreshRecommendationsButton" Grid.Column="1" Content="刷新" Click="RefreshRecommendations_Click" MinHeight="44" />
+                </Grid>
+                <ListView x:Name="RecommendationBooksList" Grid.Row="1" IsItemClickEnabled="True" ItemClick="Book_Click" SelectionMode="None">
+                  <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                      <Setter Property="Padding" Value="0" />
+                    </Style>
+                  </ListView.ItemContainerStyle>
+                  <ListView.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{ThemeResource SurfaceBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,0,0,10">
+                        <Grid>
+                          <Grid.ColumnDefinitions><ColumnDefinition Width="76" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                          <Image Width="64" Height="88" Stretch="UniformToFill" HorizontalAlignment="Left" VerticalAlignment="Top" AutomationProperties.AccessibilityView="Raw">
+                            <Image.Source><BitmapImage UriSource="{Binding CoverUrl}" DecodePixelWidth="160" /></Image.Source>
+                          </Image>
+                          <StackPanel Grid.Column="1">
+                            <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Author}" Foreground="{ThemeResource MutedBrush}" FontSize="12" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Summary}" Foreground="{ThemeResource MutedBrush}" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                          </StackPanel>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ListView.ItemTemplate>
+                </ListView>
+                <TextBlock x:Name="RecommendationsEmptyText" Grid.Row="1" Text="暂无推荐" Foreground="{ThemeResource MutedBrush}" Margin="4,12" VerticalAlignment="Top" Visibility="Collapsed" />
+              </Grid>
+              <Grid x:Name="LibraryPanel" Grid.Row="2" Visibility="Collapsed">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <TextBlock x:Name="LibraryTitleText" FontSize="20" FontWeight="SemiBold" Margin="4,0,4,12" />
+                <ListView x:Name="LibraryBooksList" Grid.Row="1" IsItemClickEnabled="True" ItemClick="LibraryBook_Click" SelectionMode="None">
+                  <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                      <Setter Property="Padding" Value="0" />
+                    </Style>
+                  </ListView.ItemContainerStyle>
+                  <ListView.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{ThemeResource SurfaceBrush}" BorderBrush="{ThemeResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,0,0,10">
+                        <Grid>
+                          <Grid.ColumnDefinitions><ColumnDefinition Width="76" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                          <Image Width="64" Height="88" Stretch="UniformToFill" HorizontalAlignment="Left" VerticalAlignment="Top" AutomationProperties.AccessibilityView="Raw">
+                            <Image.Source><BitmapImage UriSource="{Binding Book.CoverUrl}" DecodePixelWidth="160" /></Image.Source>
+                          </Image>
+                          <StackPanel Grid.Column="1">
+                            <TextBlock Text="{Binding Book.Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Book.Author}" Foreground="{ThemeResource MutedBrush}" FontSize="12" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding ProgressText}" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding LastReadText}" Foreground="{ThemeResource MutedBrush}" FontSize="12" Margin="0,4,0,0" />
+                          </StackPanel>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ListView.ItemTemplate>
+                </ListView>
+                <TextBlock x:Name="LibraryEmptyText" Grid.Row="1" Foreground="{ThemeResource MutedBrush}" Margin="4,12" VerticalAlignment="Top" Visibility="Collapsed" />
+              </Grid>
+              <ListView x:Name="BooksList" Grid.Row="2" Visibility="Collapsed" IsItemClickEnabled="True" ItemClick="Book_Click" SelectionMode="None">
+                <ListView.Header><StackPanel Margin="4,0,4,12"><TextBlock Text="搜索结果" FontSize="22" FontWeight="SemiBold" /><TextBlock x:Name="SearchResultsText" Foreground="{ThemeResource MutedBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0" /></StackPanel></ListView.Header>
                 <ListView.ItemTemplate>
-                  <DataTemplate><StackPanel Padding="0,10"><TextBlock Text="{Binding Title}" FontSize="22" /><TextBlock Text="{Binding Author}" Opacity="0.65" /></StackPanel></DataTemplate>
+                  <DataTemplate><Grid Margin="0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="44" /><ColumnDefinition /></Grid.ColumnDefinitions><Border Background="{ThemeResource HeroBrush}" CornerRadius="6" Width="32" Height="44" VerticalAlignment="Top"><FontIcon Glyph="&#xE82D;" Foreground="{StaticResource AccentBrush}" FontSize="18" /></Border><StackPanel Grid.Column="1"><TextBlock Text="{Binding Title}" FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap" /><TextBlock Text="{Binding Author}" Foreground="{ThemeResource MutedBrush}" FontSize="13" Margin="0,5,0,0" /></StackPanel></Grid></DataTemplate>
                 </ListView.ItemTemplate>
               </ListView>
               <Button x:Name="LoadMoreButton" Grid.Row="3" Content="加载更多" Click="LoadMore_Click" Visibility="Collapsed" HorizontalAlignment="Stretch" />
@@ -38,6 +199,12 @@
                   <StackPanel Margin="0,0,0,12">
                     <Button Content="返回书籍" Click="BackToBooks_Click" />
                     <TextBlock x:Name="BookTitleText" FontSize="24" TextWrapping="Wrap" Margin="0,12,0,4" />
+                    <Grid Margin="0,8,0,12">
+                      <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+                      <Button x:Name="FavoriteButton" Content="收藏" Click="Favorite_Click" HorizontalAlignment="Stretch" Margin="0,0,4,0" MinHeight="44" />
+                      <Button x:Name="ContinueBookButton" Grid.Column="1" Content="继续阅读" Click="ContinueBook_Click" HorizontalAlignment="Stretch" Margin="4,0,0,0" MinHeight="44" Visibility="Collapsed" />
+                    </Grid>
+                    <TextBlock x:Name="BookProgressText" Foreground="{ThemeResource MutedBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,12" Visibility="Collapsed" />
                     <TextBlock x:Name="BookSummaryText" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis" SizeChanged="BookSummaryText_SizeChanged" />
                     <Button x:Name="SummaryToggleButton" Content="展开简介" Click="ToggleSummary_Click" Margin="0,8,0,0" Visibility="Collapsed" />
                   </StackPanel>

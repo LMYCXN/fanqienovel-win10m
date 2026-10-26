@@ -42,6 +42,19 @@ namespace FanqieReader.Services
             return await SearchPageAsync(cancellationToken);
         }
 
+        public async Task<IReadOnlyList<Book>> GetRecommendationsAsync(CancellationToken cancellationToken)
+        {
+            // Same anonymous search-landing feed as the pinned upstream's getSearchLanding.
+            var url = "https://fanqienovel.com/reading/bookapi/plan/v?" + BuildQuery(new[]
+            {
+                Pair("search_source", "1"), Pair("scene", "10"), Pair("new_search_middle_page", "true"),
+                Pair("search_middle_page_version", "2"), Pair("from", "search_input_page"), Pair("tab_name", "store"),
+                Pair("bookstore_tab", "2"), Pair("bookstore_tab_type", "2"), Pair("hot_word_exchange", "false"),
+                Pair("query_history_removed", "false"), Pair("user_is_login", "0")
+            });
+            return ParseRecommendations(await GetAsync(url, true, cancellationToken));
+        }
+
         private async Task<IReadOnlyList<Book>> SearchPageAsync(CancellationToken token)
         {
             var url = "https://reading.snssdk.com/reading/bookapi/search/tab/v?" + BuildQuery(new[]
@@ -131,19 +144,43 @@ namespace FanqieReader.Services
             throw new InvalidDataException("搜索响应缺少书籍结果页。");
         }
 
-        private static void CollectSearchBooks(JsonArray cells, List<Book> books, HashSet<string> ids)
+        internal static IReadOnlyList<Book> ParseRecommendations(JsonObject json)
+        {
+            CheckCode(json);
+            IJsonValue data;
+            if (!json.TryGetValue("data", out data) || data.ValueType != JsonValueType.Array)
+                throw new InvalidDataException("推荐响应缺少书籍列表。");
+            var books = new List<Book>();
+            CollectSearchBooks(data.GetArray(), books, new HashSet<string>(), true);
+            return books.AsReadOnly();
+        }
+
+        private static void CollectSearchBooks(JsonArray cells, List<Book> books, HashSet<string> ids, bool novelsOnly = false)
         {
             foreach (var value in cells)
             {
                 if (value.ValueType != JsonValueType.Object) continue;
                 var cell = value.GetObject();
-                foreach (var bookValue in cell.GetNamedArray("book_data", new JsonArray()))
+                // The landing feed also includes comic and audio cards; keep text novels.
+                var showType = Text(cell, "show_type");
+                if (novelsOnly && (showType == "332" || showType == "334")) continue;
+                foreach (var bookValue in Array(cell, "book_data"))
                 {
-                    var book = ParseBook(bookValue.GetObject());
+                    if (bookValue.ValueType != JsonValueType.Object) continue;
+                    var raw = bookValue.GetObject();
+                    var genre = Text(raw, "genre");
+                    if (novelsOnly && genre.Length > 0 && genre != "0") continue;
+                    var book = ParseBook(raw);
                     if (book.Id.Length > 0 && book.Id != "0" && !string.IsNullOrWhiteSpace(book.Title) && ids.Add(book.Id)) books.Add(book);
                 }
-                CollectSearchBooks(cell.GetNamedArray("cell_data", new JsonArray()), books, ids);
+                CollectSearchBooks(Array(cell, "cell_data"), books, ids, novelsOnly);
             }
+        }
+
+        private static JsonArray Array(JsonObject json, string key)
+        {
+            IJsonValue value;
+            return json.TryGetValue(key, out value) && value.ValueType == JsonValueType.Array ? value.GetArray() : new JsonArray();
         }
 
         internal static IReadOnlyList<Chapter> ParseCatalog(JsonObject json)
@@ -167,7 +204,12 @@ namespace FanqieReader.Services
         {
             var title = Text(value, "book_name");
             if (title.Length == 0) title = Text(value, "original_book_name");
-            return new Book(Text(value, "book_id"), title, Text(value, "author"), Text(value, "abstract"));
+            var cover = Text(value, "thumb_url");
+            if (cover.Length == 0) cover = Text(value, "detail_page_thumb_url");
+            if (cover.StartsWith("//", StringComparison.Ordinal)) cover = "https:" + cover;
+            Uri coverUri;
+            if (!Uri.TryCreate(cover, UriKind.Absolute, out coverUri) || (coverUri.Scheme != "https" && coverUri.Scheme != "http")) cover = null;
+            return new Book(Text(value, "book_id"), title, Text(value, "author"), Text(value, "abstract"), cover);
         }
 
         internal static void CheckCode(JsonObject json)
