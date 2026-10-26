@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 
 namespace FanqieReader.Core
 {
@@ -10,9 +11,32 @@ namespace FanqieReader.Core
         public string Author { get; private set; }
         public string Summary { get; private set; }
         public string CoverUrl { get; private set; }
-        public Book(string id, string title, string author, string summary, string coverUrl = null)
+        public BookMetrics Metrics { get; private set; }
+        public Book(string id, string title, string author, string summary, string coverUrl = null, BookMetrics metrics = null)
         {
             Id = id; Title = title; Author = author; Summary = summary; CoverUrl = coverUrl;
+            Metrics = metrics ?? new BookMetrics();
+        }
+    }
+
+    public sealed class BookMetrics
+    {
+        public long? Readers { get; set; }
+        public double? Rating { get; set; }
+        public long? Shelves { get; set; }
+        public long? UpdatedAt { get; set; }
+        public string Status { get; set; }
+        public string Category { get; set; }
+        public string DisplayText
+        {
+            get
+            {
+                var parts = new List<string>();
+                if (Rating.HasValue) parts.Add(Rating.Value.ToString("0.0", CultureInfo.InvariantCulture) + " 分");
+                if (Readers.HasValue && Readers.Value > 0)
+                    parts.Add((Readers.Value >= 10000 ? (Readers.Value / 10000.0).ToString("0.#", CultureInfo.InvariantCulture) + "万" : Readers.Value.ToString(CultureInfo.InvariantCulture)) + "人在读");
+                return string.Join(" · ", parts);
+            }
         }
     }
 

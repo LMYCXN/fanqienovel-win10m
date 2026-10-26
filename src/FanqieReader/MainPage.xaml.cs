@@ -37,7 +37,6 @@ namespace FanqieReader
         private bool initialized;
         private bool readerBusy;
         private bool summaryExpanded;
-        private bool recommendationsLoaded;
         private string readerView = "books";
         private string bookListView = "books";
 
@@ -151,8 +150,13 @@ namespace FanqieReader
         private async void Recommend_Click(object sender, RoutedEventArgs args)
         {
             if (readerBusy) return;
-            ShowReaderView("recommendations");
-            if (!recommendationsLoaded) await ReaderActionAsync(LoadRecommendationsAsync);
+            await NavigateToBookListAsync("recommendations");
+        }
+
+        private async Task NavigateToBookListAsync(string view)
+        {
+            ShowReaderView(view);
+            if (view == "recommendations") await ReaderActionAsync(LoadRecommendationsAsync);
         }
 
         private async void RefreshRecommendations_Click(object sender, RoutedEventArgs args)
@@ -166,8 +170,12 @@ namespace FanqieReader
             readerCancellation.Token.ThrowIfCancellationRequested();
             recommendedBooks.Clear();
             foreach (var book in books) recommendedBooks.Add(book);
-            recommendationsLoaded = true;
             RecommendationsEmptyText.Visibility = recommendedBooks.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (recommendedBooks.Count > 0)
+            {
+                RecommendationBooksList.UpdateLayout();
+                RecommendationBooksList.ScrollIntoView(recommendedBooks[0], ScrollIntoViewAlignment.Leading);
+            }
             ReaderStatusText.Text = "";
         }
         private async void SearchBox_KeyDown(object sender, KeyRoutedEventArgs args)
@@ -338,7 +346,7 @@ namespace FanqieReader
 
         private async void Previous_Click(object sender, RoutedEventArgs args) { await ReaderActionAsync(() => MoveChapterAsync(-1)); }
         private async void Next_Click(object sender, RoutedEventArgs args) { await ReaderActionAsync(() => MoveChapterAsync(1)); }
-        private void BackToBooks_Click(object sender, RoutedEventArgs args) { if (!readerBusy) ShowReaderView(bookListView); }
+        private async void BackToBooks_Click(object sender, RoutedEventArgs args) { if (!readerBusy) await NavigateToBookListAsync(bookListView); }
         private void BackToCatalog_Click(object sender, RoutedEventArgs args) { ShowReaderView("catalog"); }
 
         private void ToggleSummary_Click(object sender, RoutedEventArgs args)
@@ -490,14 +498,14 @@ namespace FanqieReader
                 ? AppViewBackButtonVisibility.Visible : AppViewBackButtonVisibility.Collapsed;
         }
 
-        private void BackRequested(object sender, BackRequestedEventArgs args)
+        private async void BackRequested(object sender, BackRequestedEventArgs args)
         {
             if (args.Handled) return;
             if (readerBusy) { args.Handled = true; readerCancellation?.Cancel(); return; }
             if (readerView != "books")
             {
                 args.Handled = true;
-                ShowReaderView(readerView == "reading" ? "catalog" : readerView == "catalog" ? bookListView : "books");
+                await NavigateToBookListAsync(readerView == "reading" ? "catalog" : readerView == "catalog" ? bookListView : "books");
             }
         }
     }

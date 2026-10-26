@@ -139,6 +139,12 @@ research/                协议研究与固定版本上游源码
 
 ## 🔗 研究与后续工作
 
+推荐每次进入页面及点击「换一批」时更新。候选池合并 `/reading/bookapi/plan/v` 与官网 `/api/rank/category/list`，轮换男女频分类、阅读榜／新书榜及前三页，每个榜单请求 20 本。官网脚本的 `rankMold=1/2` 分别对应阅读榜／新书榜，分类 ID 参考[官网排行榜](https://fanqienovel.com/rank)当前配置。官网榜单的文字可能使用自定义字体，最终展示前通过 APP 详情接口获取正常书名、作者和封面。
+
+每轮从候选池选择最多 24 本补充详情，并发上限为 4；成功详情在内存中缓存 30 分钟，最多 256 本。最终选择最多 12 本，排除明确断更状态和已知评分低于 7 分的作品。`Core/RecommendationSelector.cs` 将评分、在读人数的对数值、收藏数的对数值、完结／更新状态按 55/30/10/5 的权重合并，缺失指标不计权；该数值仅作本地选书权重，不展示为官方评分。再按质量加权抽样、优先近期未展示作品、限制同分类数量（数量不足时放宽），最后按本地质量权重排序展示。完读率及 `quality_rate` 的语义未经确认，不作完读率使用。
+
+`LocalSettings/recommendations` 仅保存轮换序号和最近展示的最多 120 个书籍 ID，用于跨重启减少重复，不使用阅读历史与收藏推断偏好。某个来源或详情失败时继续使用其他成功结果；全部失败时保留界面原列表并显示错误。构建、接口与运行验证由用户执行。
+
 Lumia 已通过搜索、详情、目录、免费正文、翻章与重启继续阅读验收，原生阅读原型的核心可行性已验证。后续重点是扩大书籍样本、跨日稳定性、缓存与书架。证据与适用范围见[技术报告](TECHNICAL_FEASIBILITY_REPORT.md)。
 
 网络传输保留系统证书验证，禁用 Cookie、自动重定向及认证弹窗。10586 不提供 `HttpCacheReadBehavior.NoCache`；代码在运行时检测该枚举值，旧系统使用 `MostRecent`，见 [Microsoft API 版本说明](https://learn.microsoft.com/en-us/uwp/api/windows.web.http.filters.httpcachereadbehavior)。
