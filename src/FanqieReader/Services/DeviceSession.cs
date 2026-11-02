@@ -78,25 +78,34 @@ namespace FanqieReader.Services
     internal sealed class DeviceSession
     {
         private readonly ProtectedDeviceStore store;
+        private readonly OnlineRequest sendAsync;
         private readonly SemaphoreSlim gate = new SemaphoreSlim(1, 1);
         private DeviceState state;
-        internal DeviceSession(string folder) { store = new ProtectedDeviceStore(folder); }
+        internal DeviceSession(string folder) : this(folder, OnlineTransport.SendAsync) { }
+        internal DeviceSession(string folder, OnlineRequest sendAsync)
+        {
+            store = new ProtectedDeviceStore(folder);
+            this.sendAsync = sendAsync;
+        }
 
-        internal async Task<DeviceState> EnsureAsync(CancellationToken token)
+        internal Task<DeviceState> EnsureAsync(CancellationToken token) { return EnsureAsync(false, token); }
+        internal Task<DeviceState> RefreshKeyAsync(CancellationToken token) { return EnsureAsync(true, token); }
+
+        private async Task<DeviceState> EnsureAsync(bool refreshKey, CancellationToken token)
         {
             await gate.WaitAsync(token);
             try
             {
-                if (state != null && state.Key != null) return state;
+                if (!refreshKey && state != null && state.Key != null) return state;
                 if (state == null) state = await store.LoadAsync(token) ?? new DeviceState { RegistrationBody = RegistrationJson() };
-                if (state.Key != null) return state;
+                if (!refreshKey && state.Key != null) return state;
                 // Persist the registration seed before networking; retries keep the same identity.
                 await store.SaveAsync(state, token);
                 if (state.DeviceId.Length == 0)
                 {
                     var compressed = ContentCodec.Gzip(Encoding.UTF8.GetBytes(state.RegistrationBody));
                     var encrypted = ContentCodec.EncryptRegistration(compressed, ContentCodec.RandomBytes(32));
-                    var json = await OnlineTransport.SendAsync("https://i.snssdk.com/service/2/device_register/?tt_data=a", false, token,
+                    var json = await sendAsync("https://i.snssdk.com/service/2/device_register/?tt_data=a", false, token,
                         encrypted, "application/octet-stream; tt-data=a", false, "okhttp/4.10.0");
                     var deviceId = OnlineBookSource.Text(json, "device_id_str");
                     var installId = OnlineBookSource.Text(json, "install_id_str");
@@ -108,7 +117,7 @@ namespace FanqieReader.Services
                 }
                 var query = "device_id=" + state.DeviceId + "&iid=" + state.InstallId + "&device_type=P30&aid=1967&app_name=novelapp&channel=0&device_platform=android&os_version=0&version_code=6.3.9.32";
                 var body = new JsonObject { ["content"] = JsonValue.CreateStringValue(ContentCodec.EncryptDeviceId(state.DeviceId)) };
-                var response = await OnlineTransport.SendAsync("https://reading.snssdk.com/reading/crypt/registerkey?" + query, true, token,
+                var response = await sendAsync("https://reading.snssdk.com/reading/crypt/registerkey?" + query, true, token,
                     ContentCodec.Gzip(Encoding.UTF8.GetBytes(body.Stringify())), gzip: true);
                 OnlineBookSource.CheckCode(response);
                 var data = response.GetNamedObject("data");

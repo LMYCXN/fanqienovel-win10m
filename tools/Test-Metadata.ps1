@@ -12,7 +12,7 @@ foreach ($name in @('mscorlib', 'System', 'System.Core', 'System.Runtime', 'Syst
     $path = Join-Path $framework "$name.dll"
     if (Test-Path -LiteralPath $path) { $arguments += "/reference:$path" }
 }
-$sources = @('Core\BookModels.cs','Core\IBookSource.cs','Core\RequestSigner.cs','Core\ContentCodec.cs','Services\OnlineBookSource.cs','Services\OnlineTransport.cs','Services\DeviceSession.cs') | ForEach-Object { Join-Path $projectRoot "src\FanqieReader\$_" }
+$sources = @('Core\BookModels.cs','Core\RecommendationSelector.cs','Core\IBookSource.cs','Core\RequestSigner.cs','Core\ContentCodec.cs','Services\OnlineBookSource.cs','Services\OnlineTransport.cs','Services\DeviceSession.cs') | ForEach-Object { Join-Path $projectRoot "src\FanqieReader\$_" }
 $sources += Join-Path $projectRoot 'tests\MetadataTests.cs'
 & $environment.CompilerPaths[0] @arguments @sources
 if ($LASTEXITCODE -ne 0) { throw "元数据测试编译失败：$LASTEXITCODE" }
@@ -25,6 +25,6 @@ if ($FreeContent -or $Regressions) {
 else {
     $fixtureRoot = Join-Path $output 'store-fixture'
     [void][System.IO.Directory]::CreateDirectory($fixtureRoot)
-    & $executable --store-test $fixtureRoot
+    & $executable --store-test $fixtureRoot (Join-Path $projectRoot 'tests\content-vectors.tsv')
 }
 if ($LASTEXITCODE -ne 0) { throw "元数据测试失败：$LASTEXITCODE" }

@@ -22,7 +22,7 @@ foreach ($item in $project.Project.ItemGroup.ChildNodes) {
 [xml]$page = Get-Content -LiteralPath (Join-Path $appRoot 'MainPage.xaml') -Raw
 $codeBehind = Get-Content -LiteralPath (Join-Path $appRoot 'MainPage.xaml.cs') -Raw
 $fields = @()
-foreach ($element in $page.SelectNodes('//*')) {
+foreach ($element in $page.SelectNodes('//*[not(ancestor::*[local-name()="Page.Resources"])]')) {
     $name = $element.GetAttribute('Name', 'http://schemas.microsoft.com/winfx/2006/xaml')
     if ($name) { $fields += 'private Windows.UI.Xaml.Controls.' + $element.LocalName + ' ' + $name + ';' }
     foreach ($attribute in $element.Attributes) {

@@ -13,6 +13,9 @@ using Windows.Web.Http.Filters;
 
 namespace FanqieReader.Services
 {
+    internal delegate Task<JsonObject> OnlineRequest(string url, bool signed, CancellationToken cancellationToken,
+        byte[] body = null, string contentType = "application/json; charset=utf-8", bool gzip = false, string userAgent = "com.dragon.read");
+
     internal static class OnlineTransport
     {
         internal static async Task<JsonObject> SendAsync(string url, bool signed, CancellationToken cancellationToken,

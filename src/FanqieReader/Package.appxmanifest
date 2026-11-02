@@ -2,7 +2,7 @@
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
          xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest" IgnorableNamespaces="uap mp">
-  <Identity Name="FanqieReader.Prototype" Publisher="CN=FanqieReaderDev" Version="0.4.0.0" />
+  <Identity Name="FanqieReader.Prototype" Publisher="CN=FanqieReaderDev" Version="0.4.1.0" />
   <mp:PhoneIdentity PhoneProductId="0dcd1676-36aa-4d40-b389-cab0b03f480e" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
   <Properties><DisplayName>番茄小说</DisplayName><PublisherDisplayName>FanqieReaderDev</PublisherDisplayName><Logo>Assets\StoreLogo.png</Logo></Properties>
   <Dependencies><TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.10586.0" MaxVersionTested="10.0.0.0" /></Dependencies>

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,10 +18,20 @@ namespace FanqieReader.Services
         private string cursor = "0";
         private readonly Dictionary<string, string> chapterBooks = new Dictionary<string, string>();
         private readonly string sessionFolder;
+        private readonly OnlineRequest sendAsync;
         private DeviceSession deviceSession;
+        private readonly Dictionary<string, Tuple<Book, DateTimeOffset>> recommendationDetails = new Dictionary<string, Tuple<Book, DateTimeOffset>>();
+        // Category IDs from the official rank page; both channels rotate independently of reading history.
+        private static readonly string[] MaleCategories = { "258", "539", "261", "273", "8", "1140", "1141", "262" };
+        private static readonly string[] FemaleCategories = { "748", "253", "267", "246", "248", "79", "1139", "749" };
 
-        public OnlineBookSource() { }
-        internal OnlineBookSource(string sessionFolder) { this.sessionFolder = sessionFolder; }
+        public OnlineBookSource() : this(null, OnlineTransport.SendAsync) { }
+        internal OnlineBookSource(string sessionFolder) : this(sessionFolder, OnlineTransport.SendAsync) { }
+        internal OnlineBookSource(string sessionFolder, OnlineRequest sendAsync)
+        {
+            this.sessionFolder = sessionFolder;
+            this.sendAsync = sendAsync;
+        }
 
         public async Task<IReadOnlyList<Book>> SearchAsync(string keyword, CancellationToken cancellationToken)
         {
@@ -34,6 +45,115 @@ namespace FanqieReader.Services
         {
             if (!HasMore) return new List<Book>().AsReadOnly();
             return await SearchPageAsync(cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<Book>> GetRecommendationsAsync(CancellationToken cancellationToken)
+        {
+            var state = ApplicationData.Current.LocalSettings.CreateContainer("recommendations", ApplicationDataCreateDisposition.Always);
+            var savedRound = state.Values["round"];
+            var round = savedRound is int ? Math.Max(0, (int)savedRound) % 1000000 : 0;
+            var recentIds = ((state.Values["recentIds"] as string) ?? "").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+            var offset = round / MaleCategories.Length % 3 * 20;
+            var feeds = new[]
+            {
+                GetRecommendationBatchAsync(() => GetLandingRecommendationsAsync(cancellationToken), cancellationToken),
+                GetRecommendationBatchAsync(() => GetRankCandidatesAsync("1", MaleCategories[round * 2 % MaleCategories.Length], "1", offset, cancellationToken), cancellationToken),
+                GetRecommendationBatchAsync(() => GetRankCandidatesAsync("1", MaleCategories[(round * 2 + 1) % MaleCategories.Length], "2", offset, cancellationToken), cancellationToken),
+                GetRecommendationBatchAsync(() => GetRankCandidatesAsync("0", FemaleCategories[round * 2 % FemaleCategories.Length], "1", offset, cancellationToken), cancellationToken),
+                GetRecommendationBatchAsync(() => GetRankCandidatesAsync("0", FemaleCategories[(round * 2 + 1) % FemaleCategories.Length], "2", offset, cancellationToken), cancellationToken)
+            };
+            var batches = await Task.WhenAll(feeds);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (batches.All(batch => batch.Item1 == null))
+                throw new InvalidOperationException("推荐数据加载失败：" + batches[0].Item2.Message, batches[0].Item2);
+            var pool = batches.Where(batch => batch.Item1 != null).SelectMany(batch => batch.Item1);
+            var random = new Random();
+            var candidates = RecommendationSelector.Select(pool, recentIds, 24, 6, random);
+            Book[] details;
+            using (var gate = new SemaphoreSlim(4))
+                details = await Task.WhenAll(candidates.Select(book => GetRecommendationDetailAsync(book, gate, cancellationToken)));
+            cancellationToken.ThrowIfCancellationRequested();
+            var selected = RecommendationSelector.Select(details.Where(book => book != null), recentIds, 12, 3, random);
+            if (selected.Count == 0) throw new InvalidDataException("暂未获取到可用的推荐书籍，请点击换一批重试。");
+            foreach (var book in selected) { recentIds.Remove(book.Id); recentIds.Add(book.Id); }
+            // Only exposure IDs are kept, separate from reading history, under the LocalSettings value size limit.
+            state.Values["recentIds"] = string.Join(",", recentIds.Skip(Math.Max(0, recentIds.Count - 120)));
+            state.Values["round"] = (round + 1) % 1000000;
+            return selected;
+        }
+
+        private static async Task<Tuple<IReadOnlyList<Book>, Exception>> GetRecommendationBatchAsync(Func<Task<IReadOnlyList<Book>>> load, CancellationToken token)
+        {
+            try { return Tuple.Create<IReadOnlyList<Book>, Exception>(await load(), null); }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+            catch (Exception error) { return Tuple.Create<IReadOnlyList<Book>, Exception>(null, error); }
+        }
+
+        private async Task<IReadOnlyList<Book>> GetLandingRecommendationsAsync(CancellationToken cancellationToken)
+        {
+            // Same anonymous search-landing feed as the pinned upstream's getSearchLanding.
+            var url = "https://fanqienovel.com/reading/bookapi/plan/v?" + BuildQuery(new[]
+            {
+                Pair("search_source", "1"), Pair("scene", "10"), Pair("new_search_middle_page", "true"),
+                Pair("search_middle_page_version", "2"), Pair("from", "search_input_page"), Pair("tab_name", "store"),
+                Pair("bookstore_tab", "2"), Pair("bookstore_tab_type", "2"), Pair("hot_word_exchange", "false"),
+                Pair("query_history_removed", "false"), Pair("user_is_login", "0")
+            });
+            return ParseRecommendations(await GetAsync(url, true, cancellationToken));
+        }
+
+        private async Task<IReadOnlyList<Book>> GetRankCandidatesAsync(string gender, string category, string mold, int offset, CancellationToken token)
+        {
+            var url = "https://fanqienovel.com/api/rank/category/list?app_id=2503&rank_list_type=3&limit=20&rank_version=&gender=" + gender
+                + "&category_id=" + category + "&rankMold=" + mold + "&offset=" + offset.ToString(CultureInfo.InvariantCulture);
+            var json = await GetAsync(url, false, token);
+            CheckCode(json);
+            var books = new List<Book>();
+            foreach (var value in Array(json.GetNamedObject("data"), "book_list"))
+            {
+                if (value.ValueType != JsonValueType.Object) continue;
+                var raw = value.GetObject();
+                var id = Text(raw, "bookId");
+                if (id.Length == 0 || id == "0") continue;
+                // Web rank text may use a custom font. Fetch display metadata from the APP detail endpoint later.
+                books.Add(new Book(id, "", "", "", null, new BookMetrics
+                {
+                    Readers = Count(raw, "read_count"), Status = Text(raw, "creationStatus"),
+                    UpdatedAt = Count(raw, "lastChapterUpdateTime"), Category = gender + ":" + category
+                }));
+            }
+            return books.AsReadOnly();
+        }
+
+        private async Task<Book> GetRecommendationDetailAsync(Book candidate, SemaphoreSlim gate, CancellationToken token)
+        {
+            await gate.WaitAsync(token);
+            try
+            {
+                Tuple<Book, DateTimeOffset> cached;
+                lock (recommendationDetails) recommendationDetails.TryGetValue(candidate.Id, out cached);
+                var cacheHit = cached != null && DateTimeOffset.UtcNow - cached.Item2 < TimeSpan.FromMinutes(30);
+                var book = cacheHit ? cached.Item1 : await GetBookAsync(candidate.Id, token);
+                if (book.Id != candidate.Id || string.IsNullOrWhiteSpace(book.Title)) return null;
+                lock (recommendationDetails)
+                {
+                    if (!cacheHit) recommendationDetails[book.Id] = Tuple.Create(book, DateTimeOffset.UtcNow);
+                    if (recommendationDetails.Count > 256)
+                        recommendationDetails.Remove(recommendationDetails.OrderBy(pair => pair.Value.Item2).First().Key);
+                }
+                // Current rank readership supplements sparse detail responses without changing cached objects.
+                var metrics = new BookMetrics
+                {
+                    Readers = candidate.Metrics.Readers ?? book.Metrics.Readers, Rating = book.Metrics.Rating,
+                    Shelves = book.Metrics.Shelves, UpdatedAt = book.Metrics.UpdatedAt ?? candidate.Metrics.UpdatedAt,
+                    Status = string.IsNullOrEmpty(book.Metrics.Status) ? candidate.Metrics.Status : book.Metrics.Status,
+                    Category = string.IsNullOrEmpty(book.Metrics.Category) ? candidate.Metrics.Category : book.Metrics.Category
+                };
+                return new Book(book.Id, book.Title, book.Author, book.Summary, book.CoverUrl, metrics);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+            catch (Exception) { return null; }
+            finally { gate.Release(); }
         }
 
         private async Task<IReadOnlyList<Book>> SearchPageAsync(CancellationToken token)
@@ -70,31 +190,40 @@ namespace FanqieReader.Services
             cancellationToken.ThrowIfCancellationRequested();
             string bookId;
             if (!chapterBooks.TryGetValue(chapterId, out bookId)) throw new InvalidOperationException("请先打开书籍目录。");
-            if (deviceSession == null) deviceSession = new DeviceSession(sessionFolder ?? ApplicationData.Current.LocalFolder.Path);
+            if (deviceSession == null) deviceSession = new DeviceSession(sessionFolder ?? ApplicationData.Current.LocalFolder.Path, sendAsync);
             var device = await deviceSession.EnsureAsync(cancellationToken);
-            var json = await GetAsync("https://reading.snssdk.com/reading/reader/full/v?" + BuildQuery(new[] { Pair("item_id", chapterId), Pair("req_type", "1") }, device), true, cancellationToken);
-            CheckCode(json);
-            var data = json.GetNamedObject("data");
-            var novel = data.GetNamedObject("novel_data", new JsonObject());
-            var returnedChapter = Text(novel, "item_id");
-            var returnedBook = Text(novel, "book_id");
-            if ((returnedChapter.Length > 0 && returnedChapter != chapterId) || (returnedBook.Length > 0 && returnedBook != bookId))
-                throw new InvalidDataException("服务返回的正文与所选章节不一致。");
-            var encrypted = Text(data, "content");
-            if (encrypted.Length == 0 || encrypted == "Invalid") throw new InvalidDataException("服务未返回可读正文，阅读登记可能已失效。");
-            if (Text(data, "key_version") != device.KeyVersion) throw new InvalidDataException("阅读密钥版本已变化，本次正文未解密。");
-            var compression = Text(data, "compress_status");
-            if (compression != "0" && compression != "1") throw new InvalidDataException("服务返回了尚不支持的正文压缩格式。");
-            var html = ContentCodec.DecryptChapter(encrypted, device.Key, compression == "1");
-            int total, free;
-            if (!int.TryParse(Text(data, "paragraphs_num"), out total)) total = -1;
-            if (!int.TryParse(Text(data, "free_para_nums"), out free)) free = -1;
-            return ContentCodec.ParseHtml(chapterId, html, total, free);
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                var json = await GetAsync("https://reading.snssdk.com/reading/reader/full/v?" + BuildQuery(new[] { Pair("item_id", chapterId), Pair("req_type", "1") }, device), true, cancellationToken);
+                CheckCode(json);
+                var data = json.GetNamedObject("data");
+                var novel = data.GetNamedObject("novel_data", new JsonObject());
+                var returnedChapter = Text(novel, "item_id");
+                var returnedBook = Text(novel, "book_id");
+                if ((returnedChapter.Length > 0 && returnedChapter != chapterId) || (returnedBook.Length > 0 && returnedBook != bookId))
+                    throw new InvalidDataException("服务返回的正文与所选章节不一致。");
+                var encrypted = Text(data, "content");
+                if (encrypted.Length == 0 || encrypted == "Invalid" || Text(data, "key_version") != device.KeyVersion)
+                {
+                    if (attempt == 1) break;
+                    // Registration can expire even while the reported key version is unchanged.
+                    device = await deviceSession.RefreshKeyAsync(cancellationToken);
+                    continue;
+                }
+                var compression = Text(data, "compress_status");
+                if (compression != "0" && compression != "1") throw new InvalidDataException("服务返回了尚不支持的正文压缩格式。");
+                var html = ContentCodec.DecryptChapter(encrypted, device.Key, compression == "1");
+                int total, free;
+                if (!int.TryParse(Text(data, "paragraphs_num"), out total)) total = -1;
+                if (!int.TryParse(Text(data, "free_para_nums"), out free)) free = -1;
+                return ContentCodec.ParseHtml(chapterId, html, total, free);
+            }
+            throw new InvalidDataException("已刷新阅读密钥，但服务仍未返回可读正文，请稍后重试。");
         }
 
-        private static Task<JsonObject> GetAsync(string url, bool signed, CancellationToken cancellationToken)
+        private Task<JsonObject> GetAsync(string url, bool signed, CancellationToken cancellationToken)
         {
-            return OnlineTransport.SendAsync(url, signed, cancellationToken);
+            return sendAsync(url, signed, cancellationToken);
         }
 
         internal static IReadOnlyList<Book> ParseSearch(JsonObject json, out string next, out bool more, string tabType = "3")
@@ -116,19 +245,43 @@ namespace FanqieReader.Services
             throw new InvalidDataException("搜索响应缺少书籍结果页。");
         }
 
-        private static void CollectSearchBooks(JsonArray cells, List<Book> books, HashSet<string> ids)
+        internal static IReadOnlyList<Book> ParseRecommendations(JsonObject json)
+        {
+            CheckCode(json);
+            IJsonValue data;
+            if (!json.TryGetValue("data", out data) || data.ValueType != JsonValueType.Array)
+                throw new InvalidDataException("推荐响应缺少书籍列表。");
+            var books = new List<Book>();
+            CollectSearchBooks(data.GetArray(), books, new HashSet<string>(), true);
+            return books.AsReadOnly();
+        }
+
+        private static void CollectSearchBooks(JsonArray cells, List<Book> books, HashSet<string> ids, bool novelsOnly = false)
         {
             foreach (var value in cells)
             {
                 if (value.ValueType != JsonValueType.Object) continue;
                 var cell = value.GetObject();
-                foreach (var bookValue in cell.GetNamedArray("book_data", new JsonArray()))
+                // The landing feed also includes comic and audio cards; keep text novels.
+                var showType = Text(cell, "show_type");
+                if (novelsOnly && (showType == "332" || showType == "334")) continue;
+                foreach (var bookValue in Array(cell, "book_data"))
                 {
-                    var book = ParseBook(bookValue.GetObject());
+                    if (bookValue.ValueType != JsonValueType.Object) continue;
+                    var raw = bookValue.GetObject();
+                    var genre = Text(raw, "genre");
+                    if (novelsOnly && genre.Length > 0 && genre != "0") continue;
+                    var book = ParseBook(raw);
                     if (book.Id.Length > 0 && book.Id != "0" && !string.IsNullOrWhiteSpace(book.Title) && ids.Add(book.Id)) books.Add(book);
                 }
-                CollectSearchBooks(cell.GetNamedArray("cell_data", new JsonArray()), books, ids);
+                CollectSearchBooks(Array(cell, "cell_data"), books, ids, novelsOnly);
             }
+        }
+
+        private static JsonArray Array(JsonObject json, string key)
+        {
+            IJsonValue value;
+            return json.TryGetValue(key, out value) && value.ValueType == JsonValueType.Array ? value.GetArray() : new JsonArray();
         }
 
         internal static IReadOnlyList<Chapter> ParseCatalog(JsonObject json)
@@ -152,7 +305,30 @@ namespace FanqieReader.Services
         {
             var title = Text(value, "book_name");
             if (title.Length == 0) title = Text(value, "original_book_name");
-            return new Book(Text(value, "book_id"), title, Text(value, "author"), Text(value, "abstract"));
+            var cover = Text(value, "thumb_url");
+            if (cover.Length == 0) cover = Text(value, "detail_page_thumb_url");
+            if (cover.StartsWith("//", StringComparison.Ordinal)) cover = "https:" + cover;
+            Uri coverUri;
+            if (!Uri.TryCreate(cover, UriKind.Absolute, out coverUri) || (coverUri.Scheme != "https" && coverUri.Scheme != "http")) cover = null;
+            var rating = Number(value, "score");
+            return new Book(Text(value, "book_id"), title, Text(value, "author"), Text(value, "abstract"), cover, new BookMetrics
+            {
+                Readers = Count(value, "read_count"), Rating = rating > 0 && rating <= 10 ? rating : null,
+                Shelves = Count(value, "all_bookshelf_count"), UpdatedAt = Count(value, "last_publish_time"),
+                Status = Text(value, "creation_status"), Category = Text(value, "category")
+            });
+        }
+
+        private static long? Count(JsonObject json, string key)
+        {
+            long value;
+            return long.TryParse(Text(json, key), NumberStyles.Integer, CultureInfo.InvariantCulture, out value) && value >= 0 ? (long?)value : null;
+        }
+
+        private static double? Number(JsonObject json, string key)
+        {
+            double value;
+            return double.TryParse(Text(json, key), NumberStyles.Float, CultureInfo.InvariantCulture, out value) && !double.IsNaN(value) && !double.IsInfinity(value) ? (double?)value : null;
         }
 
         internal static void CheckCode(JsonObject json)
